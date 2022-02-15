@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 import numpy as np
 import cv2
@@ -36,6 +37,7 @@ def folded_finger(static_hand):
     #print(package)
     #print(package[folded_finger_index])
     if package[folded_finger_index] > 0.11:
+        #print(package[folded_finger_index])
         return 0,None
     else:
         #print(package[folded_finger_index],folded_finger_index)
@@ -58,9 +60,12 @@ class lm_phd:
 
 class SymbolFinder:
     def __init__(self):
-        self.symbol_to_number = {(" ็"[1:]):[2],"ะ":[8],"า":[5],(" ุ"[1:]):[12],(" ู"[1:]):[9],"เ":[16],"เเ":[13],(" ์"[1:]):[20],"ฤ":[17],"ฯ":[0],"ั":[5,7,0]}
+        #self.symbol_to_number = {(" ็"[1:]):[2],"ะ":[8],"า":[5],(" ุ"[1:]):[12],(" ู"[1:]):[9],"เ":[16],"เเ":[13],(" ์"[1:]):[20],"ฤ":[17],"ฯ":[0],"ั":[5,7,0]}
+        self.symbol_to_number = {1: [2], 2: [8], 3: [5], 4: [12], 5: [9], 6: [16],
+                                 7: [13], 8: [20], 9: [17], 10: [0], 11: [5, 7, 0]}
         #self.number_to_symbol = {v: k for k, v in self.symbol_to_number.items()}  # reverse key and item
-        self.folded_finger_symbol = {1:"ำ",2:"่",3:"้",4:"๊",5:"๋"}
+        #self.folded_finger_symbol = {1:"ำ",2:"่",3:"้",4:"๊",5:"๋"}
+        self.folded_finger_symbol = {1: 12, 2: 13, 3: 14, 4: 15, 5: 16}
 
     def calculate_center(self,reference,points):
         ans = lm_phd()
@@ -81,27 +86,29 @@ class SymbolFinder:
             if current_dist < dist:
                 symbol = i
                 dist = current_dist
-        if dist < 0.1:
+        #print(dist)
+        if dist < 0.2:
             return symbol
 
     def case_finger_folded(self,stage):
+        #print(stage)
         return self.folded_finger_symbol[stage]
 
-    def find_symbol(self,hand_interpreter):
-        pointer_hand = hand_interpreter.dataflow.left_hand
-        static_hand = hand_interpreter.dataflow.right_hand
+    def find_symbol(self,dataflow):
+        pointer_hand = dataflow.left_hand
+        static_hand = dataflow.right_hand
 
         fold_finger = folded_finger(static_hand)
+        try:
+            dist = find_distance_of_finger_point(static_hand.landmark[fold_finger[1]], pointer_hand.landmark[8])
+        except:
+            dist = 0
+        print(dist,fold_finger,dataflow.current_hand_shape[0])
         #fold_finger[1] = find_distance_of_finger_point(static_hand.landmark[fold_finger[1]],pointer_hand.landmark[8])
         #print(hand_interpreter.current_hand_shape[0])
-        try:
-            point_finger_very_close = 1 if find_distance_of_finger_point(static_hand.landmark[fold_finger[1]],pointer_hand.landmark[8]) < 0.10 else 0
-        except:
-            point_finger_very_close = False
-        print(f'Variable {point_finger_very_close} and {fold_finger}')
-        if fold_finger[0] == 0 and hand_interpreter.current_hand_shape[0] in [1,18]:
+        if fold_finger[0] == 0 and dataflow.current_hand_shape[0] in [1,18]:
             return self.case_normal_symbol(pointer_hand.landmark[8],static_hand)
-        elif fold_finger[0] == 1 and hand_interpreter.current_hand_shape[0] in [1,18] and point_finger_very_close:
+        elif dataflow.current_hand_shape[0] in [1,18] and find_distance_of_finger_point(static_hand.landmark[fold_finger[1]],pointer_hand.landmark[8]) < 0.15:
             return self.case_finger_folded(fold_finger[0])
         else:
             return None
@@ -118,14 +125,10 @@ class HandSpeller:
         self.spell_pattern = Queue(max_len=3)
         self.symbol_finder = SymbolFinder()
 
-    def get_hand_spell(self,hand_description):
+    def get_hand_spell(self,dataflow):
         #spell_mode
-        if hand_description.current_hand_shape[0] != 0 and hand_description.current_hand_shape[1] != 0:
-            return self.symbol_finder.find_symbol(hand_description)
-        else:
-            #determine from hand shape
-            pass
-
+        if dataflow.current_hand_shape[0] != 0 and dataflow.current_hand_shape[1] != 0:
+            return self.symbol_finder.find_symbol(dataflow)
 
 
 handi = HandInterpreter()
@@ -133,7 +136,7 @@ handi = HandInterpreter()
 prev_senc = None
 while True:
     text = handi.read()
-    text = HandSpeller().get_hand_spell(handi.description)
+    text = HandSpeller().get_hand_spell(handi.description.dataflow)
     #print(handi.sentence)
     img = handi.img
     img = cv2.flip(img,1)

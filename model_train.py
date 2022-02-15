@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import tensorflow as tf
 import numpy as np
 import cv2
@@ -129,6 +130,12 @@ def transform_to_list(hand_position,return_converted_hand_position = False):
     #cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     #cv2.imshow("d",img)
     #cv2.waitKey(20)
+    return lt
+
+def from_mediapipe_to_list(receive_object):
+    lt = []
+    for i in receive_object.landmark:
+        lt.append([i.x, i.y, i.z])
     return lt
 
 def find_handshape(hand_result,hand_rect,left_hand):

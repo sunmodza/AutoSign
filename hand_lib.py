@@ -1,7 +1,11 @@
+# -*- coding: utf-8 -*-
 import time
+
+import keras.models
 from fer import FER
 import numpy as np
 import cv2
+import os
 import mediapipe as mp
 import tensorflow as tf
 from cvzone.HandTrackingModule import HandDetector
@@ -26,16 +30,15 @@ try:
 except:
     pass
 
+
 class HandFlipFinder:
-    def __init__(self,dataflow):
+    def get_result(self,dataflow):
         self.left_flip = 0
         self.right_flip = 0
         if dataflow.left_hand:
-            self.left_flip = self.find_handflip(dataflow.left_hand,True)
+            self.left_flip = self.find_handflip(dataflow.left_hand, True)
         if dataflow.right_hand:
-            self.right_flip = self.find_handflip(dataflow.right_hand,False)
-
-    def get_result(self):
+            self.right_flip = self.find_handflip(dataflow.right_hand, False)
         return [self.left_flip,self.right_flip]
 
 
@@ -52,7 +55,7 @@ class HandFlipFinder:
         dz_waist_ref = abs(((index_ref_point.z + pinky_ref_point.z) / 2) - waist_ref_point.z)*2
         dx_waist_ref = abs(((index_ref_point.x + pinky_ref_point.x) / 2) - waist_ref_point.x)
 
-        #print(dx,dy,dz,dx_waist_ref,dy_waist_ref,dz_waist_ref)
+        # print(dx,dy,dz,dx_waist_ref,dy_waist_ref,dz_waist_ref)
         if dy > dx and dy > dz:
             if dx_waist_ref > dz_waist_ref:
                 if front_ref_point["x"] > waist_ref_point.x:
@@ -128,8 +131,8 @@ class HandPosture:
         self.ear = 1 - ((lm[8].y + lm[7].y) / 2)
         self.waist = (self.hip + self.sholder) / 2
 
-        self.left_hand = 1 - (((lm[15].y + lm[19].y + lm[21].y)) / 3)
-        self.right_hand = 1 - (((lm[16].y + lm[18].y + lm[20].y)) / 3)
+        self.left_hand = 1 - ((lm[15].y + lm[19].y + lm[21].y) / 3)
+        self.right_hand = 1 - ((lm[16].y + lm[18].y + lm[20].y) / 3)
 
 
 class HandPosition(HandPosture):
@@ -139,11 +142,11 @@ class HandPosition(HandPosture):
     def hand_position(self, hand_ref_point):
         if hand_ref_point >= self.ear:
             return 0
-        elif hand_ref_point < self.ear and hand_ref_point >= self.chin:
+        elif self.ear > hand_ref_point >= self.chin:
             return 1
-        elif hand_ref_point < self.chin and hand_ref_point >= self.sholder*0.8:
+        elif self.chin > hand_ref_point >= self.sholder*0.8:
             return 2
-        elif hand_ref_point < self.sholder*0.8 and hand_ref_point >= self.waist:
+        elif self.sholder*0.8 > hand_ref_point >= self.waist:
             return 3
         elif hand_ref_point < self.waist:
             return 4
@@ -151,8 +154,8 @@ class HandPosition(HandPosture):
     def get_hand_position(self, dataflow): #pose_landmark
         self.calculate_body_ref_point(dataflow.pose_results)
 
-        lp = self.hand_position(self.left_hand)
-        rp = self.hand_position(self.right_hand)
+        lp = self.hand_position(self.left_hand) if dataflow.right_hand is not None else 9
+        rp = self.hand_position(self.right_hand) if dataflow.left_hand is not None else 9
 
         return [rp, lp]
 
@@ -163,7 +166,7 @@ class HandShape:
         self.confident = 0
 
     def find_handshape(self,hand_result, hand_rect, left_hand):
-        #print(hand_rect)
+        # print(hand_rect)
         cord = model_train.transform_to_list(hand_result)
         # p5.
 
@@ -171,7 +174,7 @@ class HandShape:
         # result = -1
         pred = model.predict(np.array([train_data]))
         result = np.argmax(pred)
-        #print(pred)
+        # print(pred)
         self.confident += float(pred[0][result])
         # print(np.round(pred,2))
         return result
@@ -212,6 +215,10 @@ class DataFlow:
         self.right_hand_flipped = None
         self.current_image = None
 
+    def add_variables(self,**kwargs):
+        for key in kwargs:
+            setattr(self, key, kwargs[key])
+
 
     def load_data(self,img):
         self.reset()
@@ -225,7 +232,6 @@ class DataFlow:
         if self.hand_results.multi_handedness:
             #hands_landmark = self.hand_results.multi_hand_landmarks
             self.set_each_hand_shape()
-
 
     def set_each_hand_shape(self):
         for i, describe in enumerate(self.hand_results.multi_handedness):
@@ -258,31 +264,176 @@ class Queue:
             self.label = self.data[0]
         return self.label
 
+
+class PredictionAlgorithm:
+    def get_result(self, dataflow: DataFlow) -> list:  # return list of stage eg. [1,0] , [0]
+        raise NotImplemented
+
+    def transform_dataflow(self, dataflow: DataFlow) -> None:  # if you want to change dataflow
+        return
+
+class PredictionNeuralNetwork(PredictionAlgorithm):
+    def __init__(self,name,output_count = 10,pose_results = False,right_hand = False,left_hand = False,face = False,image = False):
+        self.cat = {"pose_results":[pose_results,33*3],"right_hand":[right_hand,21*3],"left_hand":[left_hand,21*3],"face":[face,None]}
+        if image:
+            self.cat = {"current_image":True}
+        """
+          //////
+            -
+        /////////
+        """
+        self.max_frame = None
+        self.current_data_count = 0
+        self.training_label = None
+        self.batch = None
+        self.output_count = output_count
+        self.name = name
+        self.on_train = False
+        try:
+            self.model = keras.models.load_model(os.path.join("models",f'{self.name}.h5'))
+        except:
+            self.model = keras.models.Sequential()
+            self.model.add(tf.keras.layers.Input(shape = (self.count_input_variable(),)))
+            self.model.add(tf.keras.layers.Dense(self.count_input_variable()))
+            self.model.add(tf.keras.layers.Dense(128))
+            self.model.add(tf.keras.layers.Dense(64))
+            self.model.add(tf.keras.layers.Dense(32,activation=tf.keras.activations.sigmoid))
+            self.model.add(tf.keras.layers.Dense(self.output_count,activation=tf.keras.activations.softmax))
+            self.model.compile(tf.keras.optimizers.Adamax(),tf.keras.losses.categorical_crossentropy)
+            self.model.build((1,output_count))
+            self.model.save(os.path.join("models",f'{self.name}.h5'))
+
+    def get_result(self,dataflow):
+        lt = self.transform_dataflow(dataflow)
+        #print(lt)
+        if lt is None:
+            return [0]
+        if self.on_train:
+            self.current_data_count+=1
+            self.batch.append([lt.tolist(),self.training_label])
+            if self.current_data_count == self.max_frame:
+               self.stop_collect_training_data()
+        #print(self.name,lt)
+        feed = np.array([lt],dtype=np.float).reshape(1,-1, 1)
+        #print(self.name, feed)
+        feed = tf.keras.layers.Flatten()(feed)
+
+        #print(feed.shape)
+        #print(self.model.summary())
+        return [np.argmax(self.model.predict(feed))]
+
+    def train_model(self):
+        data = np.load(os.path.join("model_data_save", f'{self.name}.npy'), allow_pickle=True)
+        x,y = data[:,0],data[:,1]
+        model.fit(x,y,epochs=5)
+
+    def save_training_data(self):
+        batch = list(self.batch)
+        old_data = list(np.load(os.path.join("model_data_save",f'{self.name}.npy'),allow_pickle=True))
+        new_data = batch+old_data
+        with open(os.path.join("model_data_save",f'{self.name}.npy'),"wb") as f:
+            np.save(new_data,allow_pickle=True)
+
+    def start_collect_training_data(self,label,max_frame):
+        self.training_label = label
+        self.batch = []
+        self.current_data_count = 0
+        self.max_frame = max_frame
+        self.on_train = True
+
+    def stop_collect_training_data(self):
+        self.save_training_data()
+        self.training_label = None
+        self.batch = None
+        self.current_data_count = 0
+        self.max_frame = None
+        self.on_train = False
+
+    def count_input_variable(self):
+        c = 0
+        for i,v in self.cat.items():
+            #print(v)
+            #print(self.cat.items())
+            if v[0]:
+                c+=v[1]
+        return c
+
+    def transform_dataflow(self, dataflow):
+        try:
+            data_line = []
+            if "current_image" in self.cat:
+                return np.array(dataflow.current_image)
+            for key,item in self.cat.items():
+                #print(key,item)
+                if item[0]:
+                    data = getattr(dataflow,key)
+                    #print(True if data else False,self.name,key)
+                    v = model_train.from_mediapipe_to_list(data)
+
+                    data_line.extend(v)
+            #print(data_line)
+            return np.array(data_line).flatten()
+        except Exception as e:
+            #print(e)
+            return
+
+
+class HandPositionAlgorithm(PredictionAlgorithm):
+    def __init__(self):
+        self.handposition = HandPosition()
+
+    def get_result(self,dataflow):
+        return self.handposition.get_hand_position(dataflow)
+
+
+class HandShapeAlgorithm(PredictionAlgorithm):
+    def __init__(self):
+        self.hand_shape = HandShape()
+
+    def get_result(self,dataflow):
+        return self.hand_shape.get_prediction(dataflow)
+
+
+class HandFlipAlgorithm(PredictionAlgorithm):
+    def __init__(self):
+        self.hand_flip = HandFlipFinder()
+
+    def get_result(self,dataflow):
+        return self.hand_flip.get_result(dataflow)
+
+
 class HandDescription:
     def __init__(self):
         self.dataflow = DataFlow()
         self.hand_shape = HandShape()
         self.all_stage = Queue()
-        self.emotion_recoginizer = EmotionRecoginizer()
+        #self.emotion_recoginizer = EmotionRecoginizer()
+        # self.test = PredictionNeuralNetwork("smile", right_hand=True)
+        self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
+        PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,left_hand=True)]
+
+    def get_final_datapipe_line(self,dataflow):
+        ret = []
+        #print(self.algorithms)
+        #print()
+        for algorithm in self.algorithms:
+            ret.append(algorithm.get_result(dataflow))
+
+        return ret
 
     def get_hand_label(self,img):
         self.dataflow.load_data(img)
-        self.current_hand_flip = HandFlipFinder(self.dataflow).get_result()
-        self.current_hand_position = HandPosition().get_hand_position(self.dataflow)
-        self.current_hand_shape = self.hand_shape.get_prediction(self.dataflow)
-        #emotion = self.emotion_recoginizer.read(self.dataflow)
-
-        if self.current_hand_shape[0] == 0:
-            self.current_hand_position[0] = 9
-        if self.current_hand_shape[1] == 0:
-            self.current_hand_position[1] = 9
-        #print(hand_position,hand_flip,hand_shape)
-        self.all_stage.add([self.current_hand_position,self.current_hand_flip,self.current_hand_shape]) #add catological pipeline
+        data = self.get_final_datapipe_line(self.dataflow)
+        self.all_stage.add(data)
+        self.dataflow.add_variables(current_hand_flip=data[1],current_hand_position = data[0],current_hand_shape = data[2])
+        # self.all_stage.add([self.current_hand_position,self.current_hand_flip,self.current_hand_shape,test])
         return Stage(self.all_stage.show())
+
 
 class EmotionRecoginizer:
     def __init__(self):
         self.detector = FER(mtcnn=True)
+        self.img = None
 
     def read(self,dataflow:DataFlow):
         self.img = dataflow.current_image
@@ -295,48 +446,37 @@ class SignDictionary:
         try:
             self.load_data()
         except:
-            self.brain = [Sentences(*[Stage("1-9-9-0-6-0")],word = "สัตว์"),
-                          Sentences(*[Stage("0-9-17-0-1-0"),Stage("1-9-9-0-5-0"),Stage("3-9-11-0-5-0")],word = "น้องสาว"),
-                          Sentences(*[Stage("0-9-17-0-18-0"),Stage("1-9-9-0-5-0"),Stage("3-9-11-0-5-0")],word = "น้องสาว"),
-                          Sentences(*[Stage("3-3-17-18-5-5"),Stage("2-3-17-18-5-5"),Stage("3-3-17-18-5-5")],word = "โรงเรียน"),
-                          Sentences(*[Stage("3-4-2-4-20-20")],word = "นม"),
-                          Sentences(*[Stage("2-2-11-11-11-11")], word="ผม"),
-                          Sentences(*[Stage("9-3-0-4-0-1"),Stage("9-3-0-6-0-1")],word = "ชอบ"),
-                          Sentences(*[Stage("3-3-1-3-5-5"),Stage("0-0-9-9-5-5")],word = "ใหญ่"),
-                          Sentences(*[Stage("1-9-9-0-10-0"),Stage("1-9-6-0-11-0")],word = "โชคดี")]
+            pass
 
     def save_data(self):
         with open("sign_dictionary.pkl","wb") as file:
             pickle.dump(self.brain,file)
 
     def load_data(self):
-        with open("sign_dictionary.pkl","rb") as file:
+        with open("sign_dictionary.pkl", "rb") as file:
             self.brain = pickle.load(file)
 
-    def search(self,sentence,exclude_word = []):
+    def search(self, sentence, exclude_word = []):
         for i in self.brain:
             if i == sentence and i.word not in exclude_word:
-                #print(sentence.sentence)
+                # print(sentence.sentence)
                 return i.word
 
     def add_word(self,sentence):
         self.brain.append(sentence)
 
-
-
 class Sentences:
-    def __init__(self,*args,max_len = 4,word = None):
+    def __init__(self, *args, max_len = 4, word = None):
         self.sentence = []
         self.word = word
         self.max_len = max_len
         for stage in args:
             self.add_stage(stage)
 
-
-    def __eq__(self,other):
+    def __eq__(self, other):
         for i in range(len(other)-len(self)+1):
-            if (other.sentence[i:i+len(self)] == self.sentence):
-                #print(other.sentence[i:i + len(self)],i,other.sentence)
+            if other.sentence[i:i+len(self)] == self.sentence:
+                # print(other.sentence[i:i + len(self)],i,other.sentence)
                 return True
         return False
 
@@ -347,7 +487,6 @@ class Sentences:
                 return msg + f'{stage.msg}'
             msg += f"{stage.msg} ::--> "
         return msg
-
 
     def add_stage(self,stage):
         if len(self.sentence) >= self.max_len:
@@ -370,7 +509,7 @@ def flatten_list(data):
             head.extend(flatten_list(data[i]))
             data = head + tail
             i = 0
-        i+=1
+        i += 1
     return data
 
 
@@ -384,8 +523,6 @@ class Stage:
         else:
             self.msg = msg
 
-
-
     def __eq__(self, other):
         my_msg = self.msg.split("-")
         # print(other)
@@ -395,7 +532,7 @@ class Stage:
 
         for i in range(len(other_msg)):
             if not (my_msg[i] == "x" or other_msg[i] == "x"):
-                #continue
+                # continue
                 if my_msg[i] != other_msg[i]:
                     return False
         return True
@@ -431,6 +568,7 @@ class HandInterpreter:
         self.prev_word = Queue(max_len=4,at_ind=-1)
         self.prev_word_sentence = None
         self.confident = 0
+        self.img = None
         self.sentence = Sentences()
         self.hand_dictionary = SignDictionary()
 
@@ -443,51 +581,30 @@ class HandInterpreter:
         self.description.hand_shape.confident = 0
         self.img = img
         stage = self.description.get_hand_label(cv2.flip(img, 1))
-        #print(result)
-        #stage = self.hand_label2stage(result)
-        #HandSpeller().get_hand_spell(self)
-        #print(stage)
+        # print(result)
+        # stage = self.hand_label2stage(result)
+        # HandSpeller().get_hand_spell(self)
+        # print(stage)
         if stage != self.prev_stage:
             self.prev_stage = stage
-            #self.confident = 0
-            #update
+            # self.confident = 0
+            # update
             self.sentence.add_stage(self.prev_stage)
-            word = self.hand_dictionary.search(self.sentence,exclude_word=self.prev_word.data)
-            #print(self.sentence)
+            word = self.hand_dictionary.search(self.sentence, exclude_word=self.prev_word.data)
+            # print(self.sentence)
             print(word)
             if word is not None and word not in self.prev_word.data:
                 self.prev_word.add(word)
                 return word
-
     def hand_label2stage(self, result):
-        #print(np.array(result).flatten().tolist())
-        #stage = Stage('-'.join([str(i) for i in np.array(result).flatten().tolist()]))
+        # print(np.array(result).flatten().tolist())
+        # stage = Stage('-'.join([str(i) for i in np.array(result).flatten().tolist()]))
         stage = Stage(result)
-        #print(stage)
+        # print(stage)
         return stage
 
+
 if __name__ == '__main__':
-    #print(flatten_list([1,2,[3,[4,5]],[2]]))
+    # print(flatten_list([1,2,[3,[4,5]],[2]]))
     pass
 
-'''
-handi = HandInterpreter()
-
-prev_senc = None
-while True:
-    text = handi.read()
-    print(handi.sentence)
-    img = handi.img
-    #cv2.putText(img, handi.sentences, (50, 400), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2,cv2.LINE_AA, True)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = Image.fromarray(img)
-    drawer = ImageDraw.Draw(img)
-    font = ImageFont.truetype("THSarabun Bold.ttf",50)
-    drawer.text((10,10), str(text), (0, 0, 255), font=font)
-    #img.show("23")
-
-    img2 = cv2.cvtColor(np.array(img),cv2.COLOR_RGB2BGR)
-
-    cv2.imshow("ds",img2)
-    cv2.waitKey(1)
-'''

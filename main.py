@@ -173,6 +173,7 @@ class HandInterpreterThread(QtCore.QThread):
             try:
                 word = self.hand_interpreter.read(self.current_img)
             except:
+                print(213214214)
                 word = None
             #self.main_agent.image_signal.emit(self.cvt_cvimg2qtimg(self.hand_interpreter.img))
             #found = self.hand_interpreter.prev_word
@@ -191,7 +192,7 @@ class HandInterpreterThread(QtCore.QThread):
                 #speaker_engine.say("tail")
                 #speaker_engine.runAndWait()
                 self.word_signal.emit(str(word))
-            cv2.waitKey(5)
+            cv2.waitKey(10)
 
     def stop(self):
         self.ThreadAction = False

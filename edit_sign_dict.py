@@ -47,3 +47,12 @@ while True:
         save_data(obj)
         show_data()
 
+self.brain = [Sentences(*[Stage("1-9-9-0-6-0")],word = "สัตว์"),
+                          Sentences(*[Stage("0-9-17-0-1-0"),Stage("1-9-9-0-5-0"),Stage("3-9-11-0-5-0")],word = "น้องสาว"),
+                          Sentences(*[Stage("0-9-17-0-18-0"),Stage("1-9-9-0-5-0"),Stage("3-9-11-0-5-0")],word = "น้องสาว"),
+                          Sentences(*[Stage("3-3-17-18-5-5"),Stage("2-3-17-18-5-5"),Stage("3-3-17-18-5-5")],word = "โรงเรียน"),
+                          Sentences(*[Stage("3-4-2-4-20-20")],word = "นม"),
+                          Sentences(*[Stage("2-2-11-11-11-11")], word="ผม"),
+                          Sentences(*[Stage("9-3-0-4-0-1"),Stage("9-3-0-6-0-1")],word = "ชอบ"),
+                          Sentences(*[Stage("3-3-1-3-5-5"),Stage("0-0-9-9-5-5")],word = "ใหญ่"),
+                          Sentences(*[Stage("1-9-9-0-10-0"),Stage("1-9-6-0-11-0")],word = "โชคดี")]
