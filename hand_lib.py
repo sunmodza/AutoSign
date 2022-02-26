@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import time
-
+from algorithms.algorithm_manager import get_all_algorithm
 import keras.models
 from fer import FER
 import numpy as np
@@ -14,6 +14,7 @@ import model_train
 from PIL import Image
 from PIL import ImageFont
 from PIL import ImageDraw
+
 from numba import njit,jit
 import pickle
 
@@ -23,6 +24,7 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_holistic = mp.solutions.holistic
 mp_hands = mp.solutions.hands
+mp_face_mesh = mp.solutions.face_mesh
 mp_selfie_segmentation = mp.solutions.selfie_segmentation
 
 try:
@@ -31,178 +33,24 @@ except:
     pass
 
 
-class HandFlipFinder:
-    def get_result(self,dataflow):
-        self.left_flip = 0
-        self.right_flip = 0
-        if dataflow.left_hand:
-            self.left_flip = self.find_handflip(dataflow.left_hand, True)
-        if dataflow.right_hand:
-            self.right_flip = self.find_handflip(dataflow.right_hand, False)
-        return [self.left_flip,self.right_flip]
-
-
-    def find_handflip(self,hand,is_left):
-        landmark = hand.landmark
-        index_ref_point = landmark[5]
-        pinky_ref_point = landmark[17]
-        waist_ref_point = landmark[0]
-        front_ref_point = {"x":(index_ref_point.x + pinky_ref_point.x)/2,"y":(index_ref_point.y + pinky_ref_point.y)/2,"z":(index_ref_point.z + pinky_ref_point.z)/2}
-        dx = abs(index_ref_point.x - pinky_ref_point.x)
-        dy = abs(index_ref_point.y - pinky_ref_point.y)
-        dz = abs(index_ref_point.z - pinky_ref_point.z)*2
-        dy_waist_ref = abs(((index_ref_point.y + pinky_ref_point.y) / 2) - waist_ref_point.y)
-        dz_waist_ref = abs(((index_ref_point.z + pinky_ref_point.z) / 2) - waist_ref_point.z)*2
-        dx_waist_ref = abs(((index_ref_point.x + pinky_ref_point.x) / 2) - waist_ref_point.x)
-
-        # print(dx,dy,dz,dx_waist_ref,dy_waist_ref,dz_waist_ref)
-        if dy > dx and dy > dz:
-            if dx_waist_ref > dz_waist_ref:
-                if front_ref_point["x"] > waist_ref_point.x:
-                    if index_ref_point.y > pinky_ref_point.y:
-                        return 1
-                    else:
-                        return 2
-                else:
-                    if index_ref_point.y > pinky_ref_point.y:
-                        return 3
-                    else:
-                        return 4
-            else:
-                if index_ref_point.y > pinky_ref_point.y:
-                    return 5
-                else:
-                    return 6
-
-        if dx > dy and dx > dz:
-            if dy_waist_ref > dz_waist_ref:
-                if front_ref_point["y"] > waist_ref_point.y:
-                    if index_ref_point.x > pinky_ref_point.x:
-                        return 7 if is_left else 8
-                    else:
-                        return 8 if is_left else 7
-                else:
-                    if index_ref_point.x > pinky_ref_point.x:
-                        return 9 if is_left else 10
-                    else:
-                        return 10 if is_left else 9
-            else:
-                if index_ref_point.x > pinky_ref_point.x:
-                    return 11 if is_left else 12
-                else:
-                    return 12 if is_left else 11
-
-        if dz > dy and dz > dx:
-            if dy_waist_ref > dx_waist_ref:
-                if front_ref_point["y"] > waist_ref_point.y:
-                    if index_ref_point.z > pinky_ref_point.z:
-                        return 13
-                    else:
-                        return 14
-                else:
-                    if index_ref_point.z > pinky_ref_point.z:
-                        return 15
-                    else:
-                        return 16
-            else:
-                if index_ref_point.z > pinky_ref_point.z:
-                    return 17
-                else:
-                    return 18
-
-
-class HandPosture:
-    def __init__(self):
-        self.sholder = None
-        self.hip = None
-        self.chin = None
-        self.ear = None
-        self.waist = None
-        self.left_hand = None
-        self.right_hand = None
-
-
-    def calculate_body_ref_point(self, pose_landmarks):
-        lm = pose_landmarks.landmark
-        self.sholder = (1 - ((lm[11].y + lm[12].y) / 2))
-        self.hip = 1 - ((lm[24].y + lm[23].y) / 2)
-        self.chin = 1 - ((((lm[10].y + lm[9].y) / 2) +
-                          ((lm[11].y + lm[12].y) / 2)) / 2)
-        self.ear = 1 - ((lm[8].y + lm[7].y) / 2)
-        self.waist = (self.hip + self.sholder) / 2
-
-        self.left_hand = 1 - ((lm[15].y + lm[19].y + lm[21].y) / 3)
-        self.right_hand = 1 - ((lm[16].y + lm[18].y + lm[20].y) / 3)
-
-
-class HandPosition(HandPosture):
-    def __init__(self):
-        super().__init__()
-
-    def hand_position(self, hand_ref_point):
-        if hand_ref_point >= self.ear:
-            return 0
-        elif self.ear > hand_ref_point >= self.chin:
-            return 1
-        elif self.chin > hand_ref_point >= self.sholder*0.8:
-            return 2
-        elif self.sholder*0.8 > hand_ref_point >= self.waist:
-            return 3
-        elif hand_ref_point < self.waist:
-            return 4
-
-    def get_hand_position(self, dataflow): #pose_landmark
-        self.calculate_body_ref_point(dataflow.pose_results)
-
-        lp = self.hand_position(self.left_hand) if dataflow.right_hand is not None else 9
-        rp = self.hand_position(self.right_hand) if dataflow.left_hand is not None else 9
-
-        return [rp, lp]
-
-
-class HandShape:
-    def __init__(self):
-        self.model = tf.keras.models.load_model("hand_shape_model.h5")
-        self.confident = 0
-
-    def find_handshape(self,hand_result, hand_rect, left_hand):
-        # print(hand_rect)
-        cord = model_train.transform_to_list(hand_result)
-        # p5.
-
-        train_data = cord.flatten().tolist() + [1 if left_hand else 0]
-        # result = -1
-        pred = model.predict(np.array([train_data]))
-        result = np.argmax(pred)
-        # print(pred)
-        self.confident += float(pred[0][result])
-        # print(np.round(pred,2))
-        return result
-
-    def get_prediction(self,dataflow):
-        left_predict = 0
-        right_predict = 0
-        self.confident = 0
-        div = 0
-        if dataflow.left_hand is not None:
-            left_predict = self.find_handshape(dataflow.left_hand,dataflow.left_hand_rect,True)
-            div += 1
-        if dataflow.right_hand is not None:
-            right_predict = self.find_handshape(dataflow.right_hand, dataflow.right_hand_rect, False)
-            div += 1
-        # print(confident)
-        try:
-            self.confident /= div
-        except ZeroDivisionError:
-            self.confident = 0
-        return [left_predict,right_predict]
-
-
 class DataFlow:
     def __init__(self):
         self.reset()
         self.holistic_model = mp_holistic.Holistic(min_detection_confidence=0.2, min_tracking_confidence=0.2,model_complexity=2)
         self.hand_model = mp_hands.Hands(model_complexity=1,min_detection_confidence=0.2,min_tracking_confidence=0.2)
+        self.face_model = mp_face_mesh.FaceMesh()
+        self.rmbg_model = mp_selfie_segmentation.SelfieSegmentation(model_selection=0)
+        self.hand_results = None
+        self.pose_results = None
+        self.left_hand = None
+        self.right_hand = None
+        self.left_hand_rect = None
+        self.right_hand_rect = None
+        self.left_hand_flipped = None
+        self.right_hand_flipped = None
+        self.current_image = None
+        self.face = None
+        self.image_removed_bg = None
 
     def reset(self):
         self.hand_results = None
@@ -214,10 +62,19 @@ class DataFlow:
         self.left_hand_flipped = None
         self.right_hand_flipped = None
         self.current_image = None
+        self.face = None
+        self.image_removed_bg = None
 
     def add_variables(self,**kwargs):
         for key in kwargs:
             setattr(self, key, kwargs[key])
+
+    def rembg(self,img):
+        results = self.rmbg_model.process(img)
+        condition = np.stack((results.segmentation_mask) * 3, axis=-1) > 0.1
+        # print(condition.shape,img.shape)
+        # img = np.where(condition, img,(0,0,0))
+        self.image_removed_bg = img[condition]
 
 
     def load_data(self,img):
@@ -227,6 +84,8 @@ class DataFlow:
         holistic_data = self.holistic_model.process(img)
         self.pose_results = holistic_data.pose_landmarks
         self.hand_results = self.hand_model.process(img)
+        self.face_results = self.face_model.process(img).multi_face_landmarks[0]
+        self.rembg(img)
 
         #self.flipped_hand_results = self.hand_model.process(cv2.flip(img, 0))
         if self.hand_results.multi_handedness:
@@ -272,150 +131,21 @@ class PredictionAlgorithm:
     def transform_dataflow(self, dataflow: DataFlow) -> None:  # if you want to change dataflow
         return
 
-class PredictionNeuralNetwork(PredictionAlgorithm):
-    def __init__(self,name,output_count = 10,pose_results = False,right_hand = False,left_hand = False,face = False,image = False):
-        self.cat = {"pose_results":[pose_results,33*3],"right_hand":[right_hand,21*3],"left_hand":[left_hand,21*3],"face":[face,None]}
-        if image:
-            self.cat = {"current_image":True}
-        """
-          //////
-            -
-        /////////
-        """
-        self.max_frame = None
-        self.current_data_count = 0
-        self.training_label = None
-        self.batch = None
-        self.output_count = output_count
-        self.name = name
-        self.on_train = False
-        try:
-            self.model = keras.models.load_model(os.path.join("models",f'{self.name}.h5'))
-        except:
-            self.model = keras.models.Sequential()
-            self.model.add(tf.keras.layers.Input(shape = (self.count_input_variable(),)))
-            self.model.add(tf.keras.layers.Dense(self.count_input_variable()))
-            self.model.add(tf.keras.layers.Dense(128))
-            self.model.add(tf.keras.layers.Dense(64))
-            self.model.add(tf.keras.layers.Dense(32,activation=tf.keras.activations.sigmoid))
-            self.model.add(tf.keras.layers.Dense(self.output_count,activation=tf.keras.activations.softmax))
-            self.model.compile(tf.keras.optimizers.Adamax(),tf.keras.losses.categorical_crossentropy)
-            self.model.build((1,output_count))
-            self.model.save(os.path.join("models",f'{self.name}.h5'))
-
-    def get_result(self,dataflow):
-        lt = self.transform_dataflow(dataflow)
-        #print(lt)
-        if lt is None:
-            return [0]
-        if self.on_train:
-            self.current_data_count+=1
-            self.batch.append([lt.tolist(),self.training_label])
-            if self.current_data_count == self.max_frame:
-               self.stop_collect_training_data()
-        #print(self.name,lt)
-        feed = np.array([lt],dtype=np.float).reshape(1,-1, 1)
-        #print(self.name, feed)
-        feed = tf.keras.layers.Flatten()(feed)
-
-        #print(feed.shape)
-        #print(self.model.summary())
-        return [np.argmax(self.model.predict(feed))]
-
-    def train_model(self):
-        data = np.load(os.path.join("model_data_save", f'{self.name}.npy'), allow_pickle=True)
-        x,y = data[:,0],data[:,1]
-        model.fit(x,y,epochs=5)
-
-    def save_training_data(self):
-        batch = list(self.batch)
-        old_data = list(np.load(os.path.join("model_data_save",f'{self.name}.npy'),allow_pickle=True))
-        new_data = batch+old_data
-        with open(os.path.join("model_data_save",f'{self.name}.npy'),"wb") as f:
-            np.save(new_data,allow_pickle=True)
-
-    def start_collect_training_data(self,label,max_frame):
-        self.training_label = label
-        self.batch = []
-        self.current_data_count = 0
-        self.max_frame = max_frame
-        self.on_train = True
-
-    def stop_collect_training_data(self):
-        self.save_training_data()
-        self.training_label = None
-        self.batch = None
-        self.current_data_count = 0
-        self.max_frame = None
-        self.on_train = False
-
-    def count_input_variable(self):
-        c = 0
-        for i,v in self.cat.items():
-            #print(v)
-            #print(self.cat.items())
-            if v[0]:
-                c+=v[1]
-        return c
-
-    def transform_dataflow(self, dataflow):
-        try:
-            data_line = []
-            if "current_image" in self.cat:
-                return np.array(dataflow.current_image)
-            for key,item in self.cat.items():
-                #print(key,item)
-                if item[0]:
-                    data = getattr(dataflow,key)
-                    #print(True if data else False,self.name,key)
-                    v = model_train.from_mediapipe_to_list(data)
-
-                    data_line.extend(v)
-            #print(data_line)
-            return np.array(data_line).flatten()
-        except Exception as e:
-            #print(e)
-            return
-
-
-class HandPositionAlgorithm(PredictionAlgorithm):
-    def __init__(self):
-        self.handposition = HandPosition()
-
-    def get_result(self,dataflow):
-        return self.handposition.get_hand_position(dataflow)
-
-
-class HandShapeAlgorithm(PredictionAlgorithm):
-    def __init__(self):
-        self.hand_shape = HandShape()
-
-    def get_result(self,dataflow):
-        return self.hand_shape.get_prediction(dataflow)
-
-
-class HandFlipAlgorithm(PredictionAlgorithm):
-    def __init__(self):
-        self.hand_flip = HandFlipFinder()
-
-    def get_result(self,dataflow):
-        return self.hand_flip.get_result(dataflow)
-
-
 class HandDescription:
     def __init__(self):
         self.dataflow = DataFlow()
-        self.hand_shape = HandShape()
+        #self.hand_shape = HandShape()
         self.all_stage = Queue()
         #self.emotion_recoginizer = EmotionRecoginizer()
         # self.test = PredictionNeuralNetwork("smile", right_hand=True)
-        self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
-        PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,left_hand=True)]
+        #self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
+        #PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,left_hand=True)]
+        self.algorithms = get_all_algorithm()
 
     def get_final_datapipe_line(self,dataflow):
         ret = []
-        #print(self.algorithms)
-        #print()
+        # print(self.algorithms)
+        # print()
         for algorithm in self.algorithms:
             ret.append(algorithm.get_result(dataflow))
 
@@ -578,7 +308,7 @@ class HandInterpreter:
     def read(self,img = None):
         if img is None:
             _, img = self.camera.read()
-        self.description.hand_shape.confident = 0
+        self.description.confident = 0
         self.img = img
         stage = self.description.get_hand_label(cv2.flip(img, 1))
         # print(result)
