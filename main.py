@@ -6,17 +6,20 @@ import subprocess
 import tensorflow.keras as keras
 from keras_visualizer import visualizer
 from tensorflow.keras.callbacks import *
+from edit_sign_dict import load_data,save_data
+import hand_lib
 from design_algorithm import Ui_DesignAlgorithm
-from main_window_ui import Ui_MainWindow
+from designed_ui import Ui_MainWindow
 from PyQt5 import QtCore, QtGui, QtWidgets
 import numpy as np
 from dialog_maker import InputDialog,CompileDialog,LayerDialog,ClassAdder,ChooseAndDisplayClassAdder,ChooseAndAdd,get_metrics,get_callback,BaseDialog,FittingModelDialog
 from tensorflow.keras.optimizers import *
 from typing import List
 from tensorflow.keras.layers import *
+from edit_dictionary import Ui_Dialog
 from tensorflow.keras.losses import *
 import cv2
-from hand_lib import HandInterpreter,DataFlow
+from hand_lib import HandInterpreter,DataFlow,Sentences
 from hand_interpreter_ui import Ui_InterpreterCatological
 #from train_algorithm import Ui_MakeAlgorithm
 from train_algorithm import Ui_MakeAlgorithm
@@ -31,10 +34,142 @@ from playsound import playsound
 #import simpleaudio
 import os
 from tensorflow.keras.metrics import *
+from edit_sentence_dialog import Ui_ChangeSentenceDialog
 
 import pyttsx3
 speaker_engine = pyttsx3.init(driverName='sapi5')
 base_img_shape = (400,400)
+
+
+class WordInDict(QtWidgets.QWidget):
+    # del_this = QtCore.pyqtSignal(bool)
+    def __init__(self,sentences,i,parent=None):
+        self.parent_dialog = parent
+        self.position = i
+        super(WordInDict, self).__init__()
+        self.sentences = sentences
+        self.item_for_ref = None
+
+        self.keep_item = QtWidgets.QHBoxLayout()
+
+        dict_label = QtWidgets.QLabel()
+        dict_label.setText(sentences.word)
+        self.keep_item.addWidget(dict_label)
+
+        for stage in sentences.sentence:
+            label = QtWidgets.QLabel()
+            label.setText(stage.msg)
+            self.keep_item.addWidget(label)
+
+        self.del_button = QtWidgets.QPushButton()
+        self.del_button.setText("delete")
+        self.del_button.clicked.connect(self.delete_this)
+
+        self.keep_item.addWidget(self.del_button)
+
+
+        self.setLayout(self.keep_item)
+
+    def delete_this(self):
+        data = load_data()
+
+        data.pop(self.position)
+
+        save_data(data)
+        self.parent_dialog.reset_dict()
+        # self.parent_dialog.ui.all_dictionary.scrollTo(QtCore.QModelIndex().siblingAtRow(self.position-1))
+
+class EditDictionaryDialog(QtWidgets.QDialog):
+    def __init__(self):
+        super().__init__()
+        self.ui = Ui_Dialog()
+        self.ui.setupUi(self)
+        self.reset_dict()
+
+
+        self.ui.all_dictionary.clicked.connect(self.edit_sentence)
+
+
+    def reset_dict(self):
+        self.ui.all_dictionary.clear()
+
+
+        for i, word in enumerate(load_data()):
+            word = WordInDict(word, i, parent=self)
+
+            item = QtWidgets.QListWidgetItem()
+            item.setSizeHint(word.sizeHint())
+
+            self.ui.all_dictionary.addItem(item)
+            self.ui.all_dictionary.setItemWidget(item, word)
+
+    def del_item(self,word):
+        data = load_data()
+        print(data[word.position])
+
+    def save(self):
+        all_sentences = []
+        for i in range(self.ui.all_dictionary.count()):
+            all_sentences.append(self.ui.all_dictionary.itemWidget(self.ui.all_dictionary.item(i)).sentences)
+        save_data(all_sentences)
+
+    def edit_sentence(self,i):
+        i = i.row()
+        word = self.ui.all_dictionary.itemWidget(self.ui.all_dictionary.item(i))
+        dialog = EditSentenceDialog(word.sentences,word.sentences.word)
+        dialog.exec()
+        if dialog.is_accept:
+            self.ui.all_dictionary.setItemWidget(self.ui.all_dictionary.item(i),WordInDict(dialog.get_value(),i,parent=self))
+            self.save()
+
+
+class EditSentenceDialog(QtWidgets.QDialog):
+    def __init__(self,sentences:Sentences,word_name:str):
+        super().__init__()
+        self.ui = Ui_ChangeSentenceDialog()
+        self.ui.setupUi(self)
+        self.is_accept = False
+
+        self.sentences = sentences.sentence
+
+
+        self.ui.apply.clicked.connect(self.accept_button)
+        self.ui.cancel.clicked.connect(self.cancel_button)
+        self.ui.word_name.setText(word_name)
+
+        for sentence in self.sentences:
+            layout = QtWidgets.QHBoxLayout()
+            for stage in sentence.msg.split("-"):
+                ele = QtWidgets.QLineEdit()
+                ele.setText(stage)
+                layout.addWidget(ele)
+            self.ui.all_sentence.addLayout(layout)
+
+    def accept_button(self):
+        self.is_accept = True
+        self.close()
+
+    def cancel_button(self):
+        self.is_accept = False
+        self.close()
+
+    def get_value(self):
+        lt_of_stage = []
+        for sentence in range(self.ui.all_sentence.count()):
+            sentence = self.ui.all_sentence.itemAt(sentence).layout()
+
+            msg = []
+            for stage in range(sentence.count()):
+                stage = sentence.itemAt(stage).widget()
+                msg.append(stage.text())
+            msg = "-".join(msg)
+
+            stage = hand_lib.Stage(msg)
+            lt_of_stage.append(stage)
+        sentences = Sentences(*lt_of_stage,word=self.ui.word_name.toPlainText())
+        return sentences
+
+
 
 
 class FourthUi(Ui_DesignAlgorithm):
@@ -83,7 +218,7 @@ class FourthUi(Ui_DesignAlgorithm):
             return
 
         text,dim = d.return_value
-        print(text,dim)
+
         if len(dim) == 3:
             self.all_input.clear()
         else:
@@ -295,8 +430,10 @@ class ThirdUi(Ui_MakeAlgorithm):
         self.all_algorithm.clicked.connect(self.switch_model)
 
         for alg in get_all_algorithm():
+            alg = alg()
             item = QtGui.QStandardItem(self.get_algo_name(alg))
             item.model_data = alg
+            # item.setData(alg,1)
             # item.clicked(lambda : print("sdsd2121r2r"))
             model.appendRow(item)
 
@@ -342,9 +479,7 @@ class ThirdUi(Ui_MakeAlgorithm):
         # th = Thread(target=lambda: fit_model(xs, ys, epochs=self.epochs_value.value())).start()
         popup.ok.setEnabled(True)
         popup.exec()
-        print(123214214214214)
-        print(self.tb_url)
-        print("foijni3ofn1")
+
         if self.tb_url is not None and not self.tb_opened:
             self.tb_opened = True
 
@@ -352,14 +487,12 @@ class ThirdUi(Ui_MakeAlgorithm):
             # self.running_tb = subprocess.Popen(["tensorboard --logdir { self.tb_dir}"],shell=True)
             webbrowser.open(self.tb_url)
 
-
         self.algo_maker.training_algo.save_model()
 
 
-
-
     def switch_model(self,id):
-        self.algo_maker.training_algo = get_all_algorithm()[id.row()]
+        self.algo_maker.training_algo = get_all_algorithm()[id.row()]()
+        #self.algo_maker.training_algo = self.all_algorithm.model().data(id.row(),QtCore.Qt.ItemDataRole(1))
         print(self.algo_maker.training_algo)
 
     def start_training_protocol(self):
@@ -448,8 +581,8 @@ class AlgoMakerAgent(QtCore.QThread):
 
                 #y_true = np.zeros((self.training_algo.output_count))
                 y = self.training_algo.get_result(self.dataflow)
-                if self.shots > 0 and ((self.is_auto and y != self.y_true) or not self.is_auto):
 
+                if self.shots > 0 and ((self.is_auto and y[0] != self.y_label) or not self.is_auto):
                     x = self.training_algo.transform_dataflow(self.dataflow)
 
                     #print(1215215215215215)
@@ -460,6 +593,8 @@ class AlgoMakerAgent(QtCore.QThread):
                     self.shots -= 1
 
                     # self.master_ui.show_recording.setText(str(self.shots))
+
+                if self.shots > 0:
                     self.shots_signal.emit(f'REMAIN: {self.shots}')
 
 
@@ -506,6 +641,7 @@ class MainUi(Ui_MainWindow):
 
         # main_ui.UpdateImageFrame = UpdateImageFrame
 
+
         self.update_thread = UpdateFrameMainAgent(self)
         self.hand_interpreter_thread = HandInterpreterThread(self.update_thread)
 
@@ -518,6 +654,7 @@ class MainUi(Ui_MainWindow):
         self.hand_interpreter_thread.word_signal.connect(self.sentence_shower.append)
         
         self.record_stage_button.clicked.connect(self.switch_window)
+        self.edit_dict_list.clicked.connect(lambda : EditDictionaryDialog().exec())
         #self.update_thread.start()
         #self.hand_interpreter_thread.start()
         
@@ -544,7 +681,7 @@ class MainUi(Ui_MainWindow):
         self.window_manager.setCurrentIndex(1)
 
 class SecondUi(Ui_InterpreterCatological):
-    def __init__(self,SecondWindow):
+    def __init__(self, SecondWindow):
         super(SecondUi, self).__init__()
         self.setupUi(SecondWindow)
         SecondWindow.linked_ui = self
@@ -557,12 +694,13 @@ class SecondUi(Ui_InterpreterCatological):
 
         self.switch_window_button.clicked.connect(self.switch_window)
         self.start_button.clicked.connect(self.start_record)
+        self.go_to_alg_train.clicked.connect(lambda : self.switch_window(id=2))
 
-    def switch_window(self):
+    def switch_window(self,id=0):
         self.stop_window()
-        self.window_manager.widget(0).linked_ui.start_window()
-        self.window_manager.resize(self.window_manager.widget(0).size())
-        self.window_manager.setCurrentIndex(0)
+        self.window_manager.widget(id).linked_ui.start_window()
+        self.window_manager.resize(self.window_manager.widget(id).size())
+        self.window_manager.setCurrentIndex(id)
 
 
     def start_record(self):
@@ -679,10 +817,10 @@ class HandInterpreterThread(QtCore.QThread):
         while self.ThreadAction:
             if self.current_img is None:
                 continue
+            # word = self.hand_interpreter.read(self.current_img)
             try:
                 word = self.hand_interpreter.read(self.current_img)
             except Exception as e:
-                print(e)
                 word = None
             #self.main_agent.image_signal.emit(self.cvt_cvimg2qtimg(self.hand_interpreter.img))
             #found = self.hand_interpreter.prev_word
@@ -740,7 +878,7 @@ class InterpreterTrainerAgent(QtCore.QThread):
                 #                                             \|/
                 #                                              V
                 # THEN UPDATE SWITCH TO CANCEL ,COLOR RED AND SWITCH SIGNAL TARGET
-
+                """
                 self.class_room.start_button.setStyleSheet("background-color: rgb(255, 0, 0)\n"
                                                            "color: rgb(0, 0, 255);")
                 self.class_room.start_button.setText("APPLY")
@@ -751,13 +889,32 @@ class InterpreterTrainerAgent(QtCore.QThread):
                                                                    "color: rgb(255, 255, 255);")
                 self.class_room.switch_window_button.setText("CANCEL")
                 self.class_room.switch_window_button.disconnect()
-                self.class_room.switch_window_button.clicked.connect(self.apply_event)
+                self.applied = False
+                
+                """
+                self.applied = False
+
+                # self.class_room.switch_window_button.clicked.connect(self.apply_event)
+
+                self.dialog = EditSentenceDialog(self.recorded_sentence,self.teaching_word)
+                self.dialog.exec_()
+
+                self.recorded_sentence = self.dialog.get_value()
+                self.accept = self.dialog.is_accept
+                if self.accept:
+                    print(self.accept)
+                    self.apply_event()
+                else:
+                    self.stop()
+
+
                 self.ThreadAction = False
-                self.class_room.hand_interpreter_thread.stop()
+
 
 
     def stop(self):
         self.ThreadAction = False
+        '''
         self.class_room.switch_window_button.setStyleSheet(self.old_switch_window_button_style_sheet)
         self.class_room.switch_window_button.setText("switch")
         self.class_room.switch_window_button.clicked.connect(self.class_room.switch_window)
@@ -765,13 +922,17 @@ class InterpreterTrainerAgent(QtCore.QThread):
         self.class_room.start_button.setStyleSheet(self.old_start_button_style_sheet)
         self.class_room.start_button.setText("start")
         self.class_room.start_button.clicked.connect(self.class_room.start_record)
+        '''
+        # self.class_room.hand_interpreter_thread.stop()
         self.quit()
 
     def apply_event(self):
-        self.recorded_sentence.word = self.teaching_word
-        self.class_room.hand_interpreter_thread.hand_interpreter.hand_dictionary.add_word(self.recorded_sentence)
-        self.class_room.hand_interpreter_thread.hand_interpreter.hand_dictionary.save_data()
-        self.stop()
+        if not self.applied:
+            self.recorded_sentence.word = self.teaching_word
+            self.class_room.hand_interpreter_thread.hand_interpreter.hand_dictionary.add_word(self.recorded_sentence)
+            self.class_room.hand_interpreter_thread.hand_interpreter.hand_dictionary.save_data()
+            self.stop()
+            self.applied = True
 
     def cancel_event(self):
         self.stop()
@@ -796,8 +957,6 @@ if __name__ == "__main__":
     third_window_ui = ThirdUi(ThirdWindow)
     fourth_window_ui = FourthUi(FourthWindow)
 
-
-
     widget = QtWidgets.QStackedWidget()
     widget.addWidget(MainWindow)
     widget.addWidget(SecondWindow)
@@ -808,14 +967,16 @@ if __name__ == "__main__":
     third_window_ui.link_window_manager(widget)
     fourth_window_ui.link_window_manager(widget)
 
-    #widget.setFixedWidth(863)
-    #widget.setFixedHeight(705)
-    #widget.setCurrentIndex(1)
-    widget.widget(1).linked_ui.switch_window()
+    # widget.setFixedWidth(863)
+    # widget.setFixedHeight(705)
+    # widget.setCurrentIndex(1)
+    # widget.widget(0).linked_ui.switch_window()
     widget.show()
-    widget.widget(0).linked_ui.stop_window()
-    widget.setCurrentIndex(2)
+    # widget.widget(0).linked_ui.stop_window()
+    widget.widget(0).linked_ui.start_window()
 
-    #MainWindow.show()
-    #ui.update_thread.run()
+    widget.setCurrentIndex(0)
+
+    # MainWindow.show()
+    # ui.update_thread.run()
     sys.exit(app.exec_())

@@ -1,4 +1,6 @@
 import pickle
+import re
+
 from hand_lib import Sentences,Stage
 def load_data():
     with open("sign_dictionary.pkl", "rb") as file:
@@ -20,39 +22,43 @@ def del_data(i):
     save_data(obj)
 
 #show_data()
-while True:
-    command = input().lower()
-    if command == "show":
-        show_data()
-    elif command == "del":
-        num = int(input("index : "))
-        del_data(num)
-        show_data()
+if __name__ == "__main__":
+    while True:
+        command = input().lower()
+        if command == "show":
+            show_data()
+        elif command == "del":
+            num = int(input("index : "))
+            del_data(num)
+            show_data()
 
-    elif command == "add":
-        word_name = input("word_name : ")
-        word_range = int(input("word_range : "))
-        sentences = Sentences()
-        sentences.word = word_name
+        elif command == "search":
+            name = input()
+            data = load_data()
+            await_remove = []
+            for i,word in enumerate(data):
+                if re.search(f"^{name}",word.word):
+                    await_remove.append(i)
+            for i in sorted(await_remove,reverse=True):
+                del data[i]
 
-        for i in range(word_range):
-            sentence = Stage(input("sentence : "))
-            sentences.add_stage(sentence)
+            for word in data:
+                print(word.word,word.sentence)
 
-        print(sentences,sentences.word)
+        elif command == "add":
+            word_name = input("word_name : ")
+            word_range = int(input("word_range : "))
+            sentences = Sentences()
+            sentences.word = word_name
 
-        obj = load_data()
-        obj.append(sentences)
+            for i in range(word_range):
+                sentence = Stage(input("sentence : "))
+                sentences.add_stage(sentence)
 
-        save_data(obj)
-        show_data()
+            # print(sentences,sentences.word)
 
-self.brain = [Sentences(*[Stage("1-9-9-0-6-0")],word = "สัตว์"),
-                          Sentences(*[Stage("0-9-17-0-1-0"),Stage("1-9-9-0-5-0"),Stage("3-9-11-0-5-0")],word = "น้องสาว"),
-                          Sentences(*[Stage("0-9-17-0-18-0"),Stage("1-9-9-0-5-0"),Stage("3-9-11-0-5-0")],word = "น้องสาว"),
-                          Sentences(*[Stage("3-3-17-18-5-5"),Stage("2-3-17-18-5-5"),Stage("3-3-17-18-5-5")],word = "โรงเรียน"),
-                          Sentences(*[Stage("3-4-2-4-20-20")],word = "นม"),
-                          Sentences(*[Stage("2-2-11-11-11-11")], word="ผม"),
-                          Sentences(*[Stage("9-3-0-4-0-1"),Stage("9-3-0-6-0-1")],word = "ชอบ"),
-                          Sentences(*[Stage("3-3-1-3-5-5"),Stage("0-0-9-9-5-5")],word = "ใหญ่"),
-                          Sentences(*[Stage("1-9-9-0-10-0"),Stage("1-9-6-0-11-0")],word = "โชคดี")]
+            obj = load_data()
+            obj.append(sentences)
+
+            save_data(obj)
+            show_data()

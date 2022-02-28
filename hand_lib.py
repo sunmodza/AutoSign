@@ -134,18 +134,19 @@ class PredictionAlgorithm:
 class HandDescription:
     def __init__(self):
         self.dataflow = DataFlow()
-        #self.hand_shape = HandShape()
+        # self.hand_shape = HandShape()
         self.all_stage = Queue()
-        #self.emotion_recoginizer = EmotionRecoginizer()
+        # self.emotion_recoginizer = EmotionRecoginizer()
         # self.test = PredictionNeuralNetwork("smile", right_hand=True)
-        #self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
-        #PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,left_hand=True)]
-        self.algorithms = get_all_algorithm()
+        # self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
+        # PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,left_hand=True)]
+        self.algorithms = [alg() for alg in get_all_algorithm()]
 
     def get_final_datapipe_line(self,dataflow):
         ret = []
         # print(self.algorithms)
         # print()
+        #print(dataflow)
         for algorithm in self.algorithms:
             ret.append(algorithm.get_result(dataflow))
 
@@ -253,6 +254,7 @@ class Stage:
         else:
             self.msg = msg
 
+
     def __eq__(self, other):
         my_msg = self.msg.split("-")
         # print(other)
@@ -286,7 +288,6 @@ class Stage:
                 new_msg.append(my_msg[i])
 
         return Stage('-'.join(new_msg))
-
 
 
 class HandInterpreter:

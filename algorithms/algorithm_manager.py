@@ -14,7 +14,7 @@ def get_all_algorithm():
             for name, obj in inspect.getmembers(v):
                 #print(name)
                 if re.search('ATC$',name):
-                    algos.append(obj())
+                    algos.append(obj)
     #print(algos)
     return algos
 

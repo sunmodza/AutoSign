@@ -80,7 +80,7 @@
         <widget class="QLabel" name="word_name_label">
          <property name="minimumSize">
           <size>
-           <width>83</width>
+           <width>50</width>
            <height>39</height>
           </size>
          </property>
@@ -157,6 +157,13 @@
          </property>
          <property name="text">
           <string>SWITCH</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="go_to_alg_train">
+         <property name="text">
+          <string>TRAIN ALGORITHM</string>
          </property>
         </widget>
        </item>

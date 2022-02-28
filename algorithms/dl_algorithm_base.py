@@ -40,7 +40,7 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
             print(self.name)
             self.model = tf.keras.models.load_model(os.path.join("models",f'{self.name}.h5'))
             # print(self.name)
-            print(self.model.summary())
+            # print(self.model.summary())
             self.save_model()
         except Exception as e:
             print(e,"21rfdsafadsfr")
