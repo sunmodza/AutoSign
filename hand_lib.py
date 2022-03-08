@@ -1,22 +1,18 @@
 # -*- coding: utf-8 -*-
+import pickle
 import time
-from algorithms.algorithm_manager import get_all_algorithm
-import keras.models
-from fer import FER
-import numpy as np
+
 import cv2
-import os
 import mediapipe as mp
+import numpy as np
 import tensorflow as tf
 from cvzone.HandTrackingModule import HandDetector
-import model_train
-#from hand_speller import HandSpeller
-from PIL import Image
-from PIL import ImageFont
-from PIL import ImageDraw
+from fer import FER
 
-from numba import njit,jit
-import pickle
+
+from algorithms.algorithm_manager import get_all_algorithm
+
+# from hand_speller import HandSpeller
 
 detector = HandDetector(detectionCon=0.8, maxHands=2)
 
@@ -29,15 +25,16 @@ mp_selfie_segmentation = mp.solutions.selfie_segmentation
 
 try:
     model = tf.keras.models.load_model("hand_shape_model.h5")
-except:
+except Exception as e:
     pass
 
 
 class DataFlow:
     def __init__(self):
         self.reset()
-        self.holistic_model = mp_holistic.Holistic(min_detection_confidence=0.2, min_tracking_confidence=0.2,model_complexity=2)
-        self.hand_model = mp_hands.Hands(model_complexity=1,min_detection_confidence=0.2,min_tracking_confidence=0.2)
+        self.holistic_model = mp_holistic.Holistic(min_detection_confidence=0.2, min_tracking_confidence=0.2,
+                                                   model_complexity=2)
+        self.hand_model = mp_hands.Hands(model_complexity=1, min_detection_confidence=0.2, min_tracking_confidence=0.2)
         self.face_model = mp_face_mesh.FaceMesh()
         self.rmbg_model = mp_selfie_segmentation.SelfieSegmentation(model_selection=0)
         self.hand_results = None
@@ -51,6 +48,7 @@ class DataFlow:
         self.current_image = None
         self.face = None
         self.image_removed_bg = None
+        self.face_results = None
 
     def reset(self):
         self.hand_results = None
@@ -65,19 +63,18 @@ class DataFlow:
         self.face = None
         self.image_removed_bg = None
 
-    def add_variables(self,**kwargs):
+    def add_variables(self, **kwargs):
         for key in kwargs:
             setattr(self, key, kwargs[key])
 
-    def rembg(self,img):
+    def rembg(self, img):
         results = self.rmbg_model.process(img)
-        condition = np.stack((results.segmentation_mask) * 3, axis=-1) > 0.1
+        condition = np.stack(results.segmentation_mask * 3, axis=-1) > 0.1
         # print(condition.shape,img.shape)
         # img = np.where(condition, img,(0,0,0))
         self.image_removed_bg = img[condition]
 
-
-    def load_data(self,img):
+    def load_data(self, img):
         self.reset()
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.current_image = img
@@ -87,9 +84,9 @@ class DataFlow:
         self.face_results = self.face_model.process(img).multi_face_landmarks[0]
         self.rembg(img)
 
-        #self.flipped_hand_results = self.hand_model.process(cv2.flip(img, 0))
+        # self.flipped_hand_results = self.hand_model.process(cv2.flip(img, 0))
         if self.hand_results.multi_handedness:
-            #hands_landmark = self.hand_results.multi_hand_landmarks
+            # hands_landmark = self.hand_results.multi_hand_landmarks
             self.set_each_hand_shape()
 
     def set_each_hand_shape(self):
@@ -107,14 +104,14 @@ class DataFlow:
 
 
 class Queue:
-    def __init__(self,max_len = 4,at_ind = -1):
+    def __init__(self, max_len=4, at_ind=-1):
         self.data = []
         self.label = None
         self.max_len = max_len
-        self.at_ind = -1
+        self.at_ind = at_ind
 
-    def add(self,data):
-        self.data.insert(0,data)
+    def add(self, data):
+        self.data.insert(0, data)
         if len(self.data) >= self.max_len:
             self.data.pop(self.at_ind)
 
@@ -131,32 +128,36 @@ class PredictionAlgorithm:
     def transform_dataflow(self, dataflow: DataFlow) -> None:  # if you want to change dataflow
         return
 
+
 class HandDescription:
     def __init__(self):
         self.dataflow = DataFlow()
         # self.hand_shape = HandShape()
         self.all_stage = Queue()
-        # self.emotion_recoginizer = EmotionRecoginizer()
-        # self.test = PredictionNeuralNetwork("smile", right_hand=True)
-        # self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
-        # PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,left_hand=True)]
+        # self.emotion_recoginizer = EmotionRecoginizer() self.test = PredictionNeuralNetwork("smile",
+        # right_hand=True) self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
+        # PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,
+        # left_hand=True)]
         self.algorithms = [alg() for alg in get_all_algorithm()]
 
-    def get_final_datapipe_line(self,dataflow):
+    def get_final_datapipe_line(self, dataflow):
         ret = []
         # print(self.algorithms)
         # print()
-        #print(dataflow)
+        # print(dataflow)
+        # s = time.perf_counter()
         for algorithm in self.algorithms:
             ret.append(algorithm.get_result(dataflow))
+        # print(time.perf_counter()-s)
 
         return ret
 
-    def get_hand_label(self,img):
+    def get_hand_label(self, img):
         self.dataflow.load_data(img)
         data = self.get_final_datapipe_line(self.dataflow)
         self.all_stage.add(data)
-        self.dataflow.add_variables(current_hand_flip=data[1],current_hand_position = data[0],current_hand_shape = data[2])
+        self.dataflow.add_variables(current_hand_flip=data[1], current_hand_position=data[0],
+                                    current_hand_shape=data[2])
         # self.all_stage.add([self.current_hand_position,self.current_hand_flip,self.current_hand_shape,test])
         return Stage(self.all_stage.show())
 
@@ -166,38 +167,43 @@ class EmotionRecoginizer:
         self.detector = FER(mtcnn=True)
         self.img = None
 
-    def read(self,dataflow:DataFlow):
+    def read(self, dataflow: DataFlow):
         self.img = dataflow.current_image
 
         print(self.detector.top_emotion(self.img))
 
+
 class SignDictionary:
     def __init__(self):
-        #332253
+        # 332253
+        self.brain = None
         try:
             self.load_data()
-        except:
+        except Exception as exc:
             pass
 
     def save_data(self):
-        with open("sign_dictionary.pkl","wb") as file:
-            pickle.dump(self.brain,file)
+        with open("sign_dictionary.pkl", "wb") as file:
+            pickle.dump(self.brain, file)
 
     def load_data(self):
         with open("sign_dictionary.pkl", "rb") as file:
             self.brain = pickle.load(file)
 
-    def search(self, sentence, exclude_word = []):
+    def search(self, sentence, exclude_word=None):
+        if exclude_word is None:
+            exclude_word = []
         for i in self.brain:
             if i == sentence and i.word not in exclude_word:
                 # print(sentence.sentence)
                 return i.word
 
-    def add_word(self,sentence):
+    def add_word(self, sentence):
         self.brain.append(sentence)
 
+
 class Sentences:
-    def __init__(self, *args, max_len = 4, word = None):
+    def __init__(self, *args, max_len=6, word=None):
         self.sentence = []
         self.word = word
         self.max_len = max_len
@@ -205,21 +211,21 @@ class Sentences:
             self.add_stage(stage)
 
     def __eq__(self, other):
-        for i in range(len(other)-len(self)+1):
-            if other.sentence[i:i+len(self)] == self.sentence:
+        for i in range(len(other) - len(self) + 1):
+            if other.sentence[i:i + len(self)] == self.sentence:
                 # print(other.sentence[i:i + len(self)],i,other.sentence)
                 return True
         return False
 
     def __repr__(self):
         msg = ""
-        for i,stage in enumerate(self.sentence):
+        for i, stage in enumerate(self.sentence):
             if i == len(self.sentence) - 1:
                 return msg + f'{stage.msg}'
             msg += f"{stage.msg} ::--> "
         return msg
 
-    def add_stage(self,stage):
+    def add_stage(self, stage):
         if len(self.sentence) >= self.max_len:
             self.sentence.pop(0)
         self.sentence.append(stage)
@@ -234,9 +240,9 @@ class Sentences:
 def flatten_list(data):
     i = 0
     while i < len(data):
-        if isinstance(data[i],list):
+        if isinstance(data[i], list):
             head = data[:i]
-            tail = data[i+1:]
+            tail = data[i + 1:]
             head.extend(flatten_list(data[i]))
             data = head + tail
             i = 0
@@ -245,15 +251,14 @@ def flatten_list(data):
 
 
 class Stage:
-    def __init__(self,msg):
+    def __init__(self, msg):
         self.msg = ""
-        if isinstance(msg,list):
+        if isinstance(msg, list):
             for i in flatten_list(msg):
                 self.msg += f'{i}-'
             self.msg = self.msg[:-1]
         else:
             self.msg = msg
-
 
     def __eq__(self, other):
         my_msg = self.msg.split("-")
@@ -275,7 +280,7 @@ class Stage:
     def __str__(self):
         return self.msg
 
-    @njit
+
     def __add__(self, other):
         my_msg = self.msg.split("-")
         other_msg = other.msg.split("-")
@@ -296,7 +301,7 @@ class HandInterpreter:
         self.description = HandDescription()
         self.prev_stage = None
         self.sentences = ""
-        self.prev_word = Queue(max_len=4,at_ind=-1)
+        self.prev_word = Queue(max_len=4, at_ind=-1)
         self.prev_word_sentence = None
         self.confident = 0
         self.img = None
@@ -306,7 +311,7 @@ class HandInterpreter:
     def reset_sentence(self):
         self.sentence = Sentences()
 
-    def read(self,img = None):
+    def read(self, img=None):
         if img is None:
             _, img = self.camera.read()
         self.description.confident = 0
@@ -327,7 +332,9 @@ class HandInterpreter:
             if word is not None and word not in self.prev_word.data:
                 self.prev_word.add(word)
                 return word
-    def hand_label2stage(self, result):
+
+    @staticmethod
+    def hand_label2stage(result):
         # print(np.array(result).flatten().tolist())
         # stage = Stage('-'.join([str(i) for i in np.array(result).flatten().tolist()]))
         stage = Stage(result)
@@ -338,4 +345,3 @@ class HandInterpreter:
 if __name__ == '__main__':
     # print(flatten_list([1,2,[3,[4,5]],[2]]))
     pass
-
