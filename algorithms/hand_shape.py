@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import copy
 
+import torch
 
 
 class Vector:

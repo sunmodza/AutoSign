@@ -12,6 +12,7 @@ from fer import FER
 
 from algorithms.algorithm_manager import get_all_algorithm
 
+ #from numba import njit
 # from hand_speller import HandSpeller
 
 detector = HandDetector(detectionCon=0.8, maxHands=2)
@@ -32,9 +33,9 @@ except Exception as e:
 class DataFlow:
     def __init__(self):
         self.reset()
-        self.holistic_model = mp_holistic.Holistic(min_detection_confidence=0.2, min_tracking_confidence=0.2,
+        self.holistic_model = mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5,
                                                    model_complexity=2)
-        self.hand_model = mp_hands.Hands(model_complexity=1, min_detection_confidence=0.2, min_tracking_confidence=0.2)
+        self.hand_model = mp_hands.Hands(model_complexity=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
         self.face_model = mp_face_mesh.FaceMesh()
         self.rmbg_model = mp_selfie_segmentation.SelfieSegmentation(model_selection=0)
         self.hand_results = None
@@ -104,7 +105,7 @@ class DataFlow:
 
 
 class Queue:
-    def __init__(self, max_len=4, at_ind=-1):
+    def __init__(self, max_len=3, at_ind=-1):
         self.data = []
         self.label = None
         self.max_len = max_len
@@ -147,7 +148,10 @@ class HandDescription:
         # print(dataflow)
         # s = time.perf_counter()
         for algorithm in self.algorithms:
-            ret.append(algorithm.get_result(dataflow))
+            try:
+                ret.append(algorithm.get_result(dataflow))
+            except:
+                ret.append(0)
         # print(time.perf_counter()-s)
 
         return ret
@@ -229,6 +233,9 @@ class Sentences:
         if len(self.sentence) >= self.max_len:
             self.sentence.pop(0)
         self.sentence.append(stage)
+
+    def clear(self):
+        self.sentence = []
 
     def __len__(self):
         return len(self.sentence)
@@ -326,11 +333,14 @@ class HandInterpreter:
             # self.confident = 0
             # update
             self.sentence.add_stage(self.prev_stage)
+            #start = time.perf_counter()
             word = self.hand_dictionary.search(self.sentence, exclude_word=self.prev_word.data)
+            #print(time.perf_counter()-start)
             # print(self.sentence)
             print(word)
             if word is not None and word not in self.prev_word.data:
-                self.prev_word.add(word)
+                #self.prev_word.add(word)
+                self.sentence.clear()
                 return word
 
     @staticmethod

@@ -1,19 +1,15 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import numpy as np
 import cv2
 import mediapipe as mp
-import tensorflow as tf
 from cvzone.HandTrackingModule import HandDetector
 from hand_lib import HandInterpreter
 from hand_lib import Queue
-import model_train
+from utils import model_train
 #from hand_speller import HandSpeller
 from PIL import Image
 from PIL import ImageFont
 from PIL import ImageDraw
-from numba import njit,jit
-import pickle
 
 detector = HandDetector(detectionCon=0.8, maxHands=2)
 
@@ -22,14 +18,19 @@ mp_drawing_styles = mp.solutions.drawing_styles
 mp_holistic = mp.solutions.holistic
 mp_hands = mp.solutions.hands
 mp_selfie_segmentation = mp.solutions.selfie_segmentation
+dthump_calibration = 1.1
+dindex_calibration = 1.1
+dmiddle_calibration = 1
+dring_calibration = 1.1
+dpinky_calibration = 1.5
 
 def folded_finger(static_hand):
-    static_hand = model_train.transform_to_list(static_hand,return_converted_hand_position=True)[1].landmark
-    dthumb = find_distance_of_finger_point(static_hand[1], static_hand[4]) * 1.1
-    dindex = find_distance_of_finger_point(static_hand[5], static_hand[8]) * 1.1
-    dmiddle = find_distance_of_finger_point(static_hand[9], static_hand[12])
-    dring = find_distance_of_finger_point(static_hand[13], static_hand[16]) * 1.1
-    dpinky = find_distance_of_finger_point(static_hand[17], static_hand[20]) * 1.5
+    static_hand = model_train.transform_to_list(static_hand, return_converted_hand_position=True)[1].landmark
+    dthumb = find_distance_of_finger_point(static_hand[1], static_hand[4]) * dthump_calibration
+    dindex = find_distance_of_finger_point(static_hand[5], static_hand[8]) * dindex_calibration
+    dmiddle = find_distance_of_finger_point(static_hand[9], static_hand[12]) * dmiddle_calibration
+    dring = find_distance_of_finger_point(static_hand[13], static_hand[16]) * dring_calibration
+    dpinky = find_distance_of_finger_point(static_hand[17], static_hand[20]) * dpinky_calibration
 
     package = [dthumb, dindex, dmiddle, dring, dpinky]
     mapping = [1,5,9,13,17]
@@ -103,18 +104,18 @@ class SymbolFinder:
             dist = find_distance_of_finger_point(static_hand.landmark[fold_finger[1]], pointer_hand.landmark[8])
         except:
             dist = 0
-        print(dist,fold_finger,dataflow.current_hand_shape[0])
-        #fold_finger[1] = find_distance_of_finger_point(static_hand.landmark[fold_finger[1]],pointer_hand.landmark[8])
-        #print(hand_interpreter.current_hand_shape[0])
+        # print(dist,fold_finger,dataflow.current_hand_shape[0])
+        # fold_finger[1] = find_distance_of_finger_point(static_hand.landmark[fold_finger[1]],pointer_hand.landmark[8])
+        # print(hand_interpreter.current_hand_shape[0])
         if fold_finger[0] == 0 and dataflow.current_hand_shape[0] in [1,18]:
             return self.case_normal_symbol(pointer_hand.landmark[8],static_hand)
         elif dataflow.current_hand_shape[0] in [1,18] and find_distance_of_finger_point(static_hand.landmark[fold_finger[1]],pointer_hand.landmark[8]) < 0.15:
             return self.case_finger_folded(fold_finger[0])
         else:
             return None
-        #stage = [fold_finger]
+        # stage = [fold_finger]
 
-        #return stage
+        # return stage
 
 
 

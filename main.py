@@ -5,7 +5,6 @@ import time
 import webbrowser
 from threading import Thread
 import cv2
-import numpy as np
 import pyttsx3
 import tensorflow as tf
 import tensorflow.keras as keras
@@ -14,21 +13,33 @@ from tensorflow.keras.callbacks import *
 
 import hand_lib
 from algorithms.algorithm_manager import get_all_algorithm
-from design_algorithm import Ui_DesignAlgorithm
-from designed_ui import Ui_MainWindow
-from dialog_maker import InputDialog, CompileDialog, LayerDialog, get_callback, BaseDialog, FittingModelDialog
-from edit_dictionary import Ui_Dialog
-from edit_sentence_dialog import Ui_ChangeSentenceDialog
-from edit_sign_dict import load_data, save_data
-from hand_interpreter_ui import Ui_InterpreterCatological
+from ui.design_algorithm import Ui_DesignAlgorithm
+from ui.designed_ui import Ui_MainWindow
+from ui.dialog_maker import InputDialog, CompileDialog, LayerDialog, get_callback, BaseDialog, FittingModelDialog
+from ui.edit_dictionary import Ui_Dialog
+from ui.edit_sentence_dialog import Ui_ChangeSentenceDialog
+from utils.edit_sign_dict import load_data, save_data
+from ui.hand_interpreter_ui import Ui_InterpreterCatological
 from hand_lib import HandInterpreter, DataFlow, Sentences
 # from train_algorithm import Ui_MakeAlgorithm
-from train_algorithm import Ui_MakeAlgorithm
+from ui.train_algorithm import Ui_MakeAlgorithm
+
+from keras.metrics import *
+from tensorflow.keras.constraints import *
+from tensorflow.keras.regularizers import *
+from tensorflow.keras.callbacks import *
+from tensorflow.keras.optimizers import *
+from tensorflow.keras.losses import *
+
+
 
 speaker_engine = pyttsx3.init(driverName='sapi5')
 base_img_shape = (400, 400)
 new_x = None
 new_y = None
+
+# global hand_interpreter
+hand_interpreter = HandInterpreter()
 
 class WordInDict(QtWidgets.QWidget):
     # del_this = QtCore.pyqtSignal(bool)
@@ -274,13 +285,10 @@ class FourthUi(Ui_DesignAlgorithm):
             feed_input += f'{self.all_input.item(i).text()}=True,'
         feed_input = feed_input[:-1]
 
-        base = "from algorithms.dl_algorithm_base import PredictionNeuralNetwork\nimport tensorflow as tf\nimport " \
-               "tensorflow.keras as keras\nfrom keras.callbacks import *\n "
+        base = "from algorithms.dl_algorithm_base import PredictionNeuralNetwork\nimport tensorflow as tf\nimport tensorflow.keras as keras\nfrom keras.callbacks import *\n"
 
-        declaration = base + f'class {name}_ATC(PredictionNeuralNetwork):\n\tdef __init__(self):\n\t\tsuper(' \
-                             f').__init__(name="{name}",output_count={self.out.shape[1]},' \
-                             f'{feed_input})\n\t\tself.callback_args = {self.get_callback_argument()} '
-        # print(declaration)
+        declaration = base + f'class {name}_ATC(PredictionNeuralNetwork):\n\tdef __init__(self):\n\t\tsuper().__init__(name="{name}",output_count={self.out.shape[1]},{feed_input})\n\t\tself.callback_args = {self.get_callback_argument()}'
+        #print(declaration)
         return declaration
 
     def compile_model(self):
@@ -302,6 +310,7 @@ class FourthUi(Ui_DesignAlgorithm):
         d.exec_()
 
         # self.model = tf.keras.Model(inputs=self.input, outputs=self.out, name=input_name.text())
+        print(f'self.model.{self.view_compile.toPlainText()}')
         exec(f'self.model.{self.view_compile.toPlainText()}')
         # print(self.get_callback_argument())
         self.model.build(input_shape=self.input.shape)
@@ -372,6 +381,7 @@ class FitModel(QtCore.QRunnable):
         self.algo_maker.training_algo.model.fit(self.xs, self.ys, epochs=self.epochs, callbacks=all_cb, verbose=0)
         for cb in all_cb:
             if isinstance(cb, TensorBoard):
+                print(cb)
                 # print(cb.log_dir,"duwifhg2iofhjn1329oir321r1")
                 # self.my_t = Thread(target=lambda: os.system(f"tensorboard --logdir {cb.log_dir}"))
                 # self.my_t.start()
@@ -415,7 +425,7 @@ class ThirdUi(Ui_MakeAlgorithm):
 
         self.start()
         # self.algo_maker.start_collect()
-
+    '''
     def reset_algo(self):
         model = QtGui.QStandardItemModel()
         self.all_algorithm.setModel(model)
@@ -423,6 +433,20 @@ class ThirdUi(Ui_MakeAlgorithm):
 
         for alg in get_all_algorithm():
             alg = alg()
+            item = QtGui.QStandardItem(self.get_algo_name(alg))
+            item.model_data = alg
+            # item.setData(alg,1)
+            # item.clicked(lambda : print("sdsd2121r2r"))
+            model.appendRow(item)
+    '''
+
+    def reset_algo(self):
+        model = QtGui.QStandardItemModel()
+        self.all_algorithm.setModel(model)
+        self.all_algorithm.clicked.connect(self.switch_model)
+
+        for alg in hand_interpreter.description.algorithms:
+            #alg = alg()
             item = QtGui.QStandardItem(self.get_algo_name(alg))
             item.model_data = alg
             # item.setData(alg,1)
@@ -539,7 +563,7 @@ class AlgoMakerAgent(QtCore.QThread):
         super(QtCore.QThread, self).__init__()
         self.master_ui = master_ui
         self.current_img = None
-        self.hand_interpreter = HandInterpreter()
+        self.hand_interpreter = hand_interpreter
         self.dataflow = DataFlow()
         self.is_auto = False
         self.shots = 0
@@ -650,9 +674,15 @@ class MainUi(Ui_MainWindow):
         self.hand_interpreter_thread.word_signal.connect(self.sentence_shower.append)
 
         self.record_stage_button.clicked.connect(self.switch_window)
-        self.edit_dict_list.clicked.connect(lambda: EditDictionaryDialog().exec())
+        self.edit_dict_list.clicked.connect(self.edit_dictionary)
         # self.update_thread.start()
         # self.hand_interpreter_thread.start()
+
+    def edit_dictionary(self):
+        self.stop_window()
+        dict = EditDictionaryDialog()
+        dict.exec()
+        self.start_window()
 
     def update_image_frame(self, img):
         self.ImageFrame.setPixmap(QtGui.QPixmap.fromImage(img))
@@ -704,6 +734,7 @@ class SecondUi(Ui_InterpreterCatological):
         if self.recording_thread:
             self.recording_thread.stop()
         self.hand_interpreter_thread = HandInterpreterThread(self.update_thread)
+        self.hand_interpreter_thread.slow_factor = 1
         self.update_thread.feed_image_hand_interpreter_signal.connect(
             self.hand_interpreter_thread.update_image)
         self.hand_interpreter_thread.sentence_stage_signal.connect(self.sentence_label.setText)
@@ -801,8 +832,9 @@ class HandInterpreterThread(QtCore.QThread):
         super().__init__()
         self.current_img = None
         self.main_agent = main_agent
-        self.hand_interpreter = HandInterpreter()
+        self.hand_interpreter = hand_interpreter
         self.ThreadAction = False
+        self.slow_factor = 1
 
     def update_image(self, img):
         self.current_img = img
@@ -834,7 +866,7 @@ class HandInterpreterThread(QtCore.QThread):
                 # speaker_engine.say("tail")
                 # speaker_engine.runAndWait()
                 self.word_signal.emit(str(word))
-            cv2.waitKey(1)
+            cv2.waitKey(1*self.slow_factor)
 
     def stop(self):
         self.ThreadAction = False
@@ -850,7 +882,7 @@ class InterpreterTrainerAgent(QtCore.QThread):
     #       ___     #      |     |     []
     ############
 
-    def __init__(self, second_window: Ui_InterpreterCatological, max_len: int, word_name: str) -> None:
+    def __init__(self, second_window: SecondUi, max_len: int, word_name: str) -> None:
         super(QtCore.QThread, self).__init__()
         super().__init__()
         self.student = second_window.hand_interpreter_thread
@@ -892,22 +924,27 @@ class InterpreterTrainerAgent(QtCore.QThread):
                 
                 """
                 self.applied = False
-
+                self.class_room.hand_interpreter_thread.stop()
+                self.class_room.update_thread.stop()
                 # self.class_room.switch_window_button.clicked.connect(self.apply_event)
 
+                print("232321321323")
                 self.dialog = EditSentenceDialog(self.recorded_sentence, self.teaching_word)
-                self.dialog.exec_()
-
+                #self.dialog.exec_()
+                print("2323")
                 self.recorded_sentence = self.dialog.get_value()
+                print(self.recorded_sentence)
                 self.accept = self.dialog.is_accept
-                if self.accept:
+                if not self.accept:
                     print(self.accept)
                     self.apply_event()
                 else:
                     self.stop()
+                self.class_room.hand_interpreter_thread.start()
+                self.class_room.update_thread.start()
 
                 self.ThreadAction = False
-            cv2.waitKey(10)
+            cv2.waitKey(1)
 
     def stop(self):
         self.ThreadAction = False
