@@ -12,25 +12,52 @@ class Vector:
         self.z = z
 
     def angle_between_z(self):
+        """
+        find the angle of the z axis
+        :return:
+        """
         return np.rad2deg(np.arctan(self.y/self.x))
 
     def angle_between_y(self):
+        """
+        find the angle of the y axis
+        :return:
+        """
         return np.rad2deg(np.arctan(self.z / self.x))
 
     def angle_between_x(self):
+        """
+        find the angle of the x axis
+        :return:
+        """
         return np.rad2deg(np.arctan(self.z/self.y))
 
     def rotate_x(self,zeta):
+        """
+        rotate the vector in x axis
+        :param zeta:
+        :return:
+        """
         zeta = np.deg2rad(zeta)
         self.y = self.y*np.cos(zeta) + self.z * np.sin(zeta)
         self.z = self.y*-np.sin(zeta) + self.z * np.cos(zeta)
 
     def rotate_y(self,zeta):
+        """
+        rotate the vector in y axis
+        :param zeta:
+        :return:
+        """
         zeta = np.deg2rad(zeta)
         self.x = self.x*np.cos(zeta) + self.z * np.sin(zeta)
         self.z = self.x*-np.sin(zeta) + self.z * np.cos(zeta)
 
     def rotate_z(self,zeta):
+        """
+        rotate the vector in z axis
+        :param zeta:
+        :return:
+        """
         zeta = np.deg2rad(zeta)
         self.x = self.x*np.cos(zeta) + self.y * -np.sin(zeta)
         self.y = self.x*np.sin(zeta) + self.y * np.cos(zeta)
@@ -39,6 +66,12 @@ class Vector:
         return np.array([self.x,self.y,self.z])
 
 def transform_to_list(hand_position, return_converted_hand_position=False):
+    """
+    normal the rotation, position of the hand
+    :param hand_position:
+    :param return_converted_hand_position:
+    :return:
+    """
     # hand_position = copy.copy(hand_position)
     lt = []
     # make list and centerize
@@ -116,6 +149,13 @@ class HandShape:
         self.confident = 0
 
     def find_handshape(self,hand_result, hand_rect, left_hand):
+        """
+        return handshape stage
+        :param hand_result: mediapipe data from mphands
+        :param hand_rect: mediapipe hand rect for cropping hand
+        :param left_hand: indicate if the hand_result if the left_hand or not
+        :return: handshape stage
+        """
         # print(hand_rect)
         cord = transform_to_list(hand_result)
         # p5.
@@ -130,6 +170,11 @@ class HandShape:
         return result
 
     def get_prediction(self,dataflow):
+        """
+        concatenate the both hand's stage to one stage
+        :param dataflow:
+        :return:
+        """
         left_predict = 0
         right_predict = 0
         self.confident = 0

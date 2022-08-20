@@ -12,6 +12,11 @@ class PredictionAlgorithm:
         return
 
 def from_mediapipe_to_list(receive_object):
+    """
+    convert the mediapipe data to standard python list
+    :param receive_object:
+    :return:
+    """
     lt = []
     for i in receive_object.landmark:
         lt.append([i.x, i.y, i.z])
@@ -42,7 +47,7 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
             # print(self.name)
             # print(self.model.summary())
             self.save_model()
-        except Exception as e:
+        except BaseException as e:
             print(e,"21rfdsafadsfr")
             if model is None:
                 self.create_model()
@@ -51,9 +56,17 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
         # self.model.save(os.path.join("models",f'{self.name}.h5'))
 
     def save_model(self):
+        """
+        save model data
+        :return:
+        """
         self.model.save(os.path.join("models", f'{self.name}.h5'))
 
     def create_model(self):
+        """
+        user defined class to create the model if the model reset
+        :return:
+        """
         """
         self.model = keras.models.Sequential()
         self.model.add(tf.keras.layers.Input(shape=(self.count_input_variable(),)))
@@ -68,6 +81,11 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
         pass
 
     def get_result(self,dataflow):
+        """
+        get the stage of current dl-algorithm
+        :param dataflow:
+        :return:
+        """
         lt = np.array([self.transform_dataflow(dataflow)])
         #print(lt)
         if lt is None:
@@ -89,11 +107,19 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
         return [np.argmax(self.model.predict(lt))]
 
     def train_model(self):
+        """
+        to execute model training
+        :return:
+        """
         data = np.load(os.path.join("model_data_save", f'{self.name}.npy'), allow_pickle=True)
         x,y = data[:,0],data[:,1]
         self.model.fit(x,y,epochs=5)
 
     def save_training_data(self):
+        """
+        to save training data collected from external camera
+        :return:
+        """
         batch = list(self.batch)
         old_data = list(np.load(os.path.join("model_data_save",f'{self.name}.npy'),allow_pickle=True))
         new_data = batch+old_data
@@ -101,6 +127,12 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
             np.save(new_data,allow_pickle=True)
 
     def start_collect_training_data(self,label,max_frame):
+        """
+        tell the class to start collect training data
+        :param label: label represented the correct training label date
+        :param max_frame: the number indicate how many sample we need
+        :return:
+        """
         self.training_label = label
         self.batch = []
         self.current_data_count = 0
@@ -108,6 +140,10 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
         self.on_train = True
 
     def stop_collect_training_data(self):
+        """
+        tell the class to stop collecting the data
+        :return:
+        """
         self.save_training_data()
         self.training_label = None
         self.batch = None
@@ -116,6 +152,10 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
         self.on_train = False
 
     def count_input_variable(self):
+        """
+        Count the input variable count
+        :return:
+        """
         c = 0
         for i,v in self.cat.items():
             #print(v)
@@ -126,6 +166,11 @@ class PredictionNeuralNetwork(PredictionAlgorithm):
         return c
 
     def transform_dataflow(self, dataflow):
+        """
+        transform the dataflow into the algorithm digestable dataflow form
+        :param dataflow:
+        :return:
+        """
         try:
             # print(dataflow.current_image.shape)
             data_line = []

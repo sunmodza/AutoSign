@@ -87,15 +87,20 @@ class SymbolFinder:
             if current_dist < dist:
                 symbol = i
                 dist = current_dist
-        #print(dist)
+        # print(dist)
         if dist < 0.2:
             return symbol
 
     def case_finger_folded(self,stage):
-        #print(stage)
+        # print(stage)
         return self.folded_finger_symbol[stage]
 
     def find_symbol(self,dataflow):
+        """
+        return the current symbol
+        :param dataflow:
+        :return:
+        """
         pointer_hand = dataflow.left_hand
         static_hand = dataflow.right_hand
 

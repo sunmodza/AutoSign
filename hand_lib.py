@@ -65,10 +65,20 @@ class DataFlow:
         self.image_removed_bg = None
 
     def add_variables(self, **kwargs):
+        """
+
+        :param kwargs: to add argument to class with format {"Name":Value}
+        :return:
+        """
         for key in kwargs:
             setattr(self, key, kwargs[key])
 
     def rembg(self, img):
+        """
+        Remove image background
+        :param img: Numpy image
+        :return:
+        """
         results = self.rmbg_model.process(img)
         condition = np.stack(results.segmentation_mask * 3, axis=-1) > 0.1
         # print(condition.shape,img.shape)
@@ -76,6 +86,11 @@ class DataFlow:
         self.image_removed_bg = img[condition]
 
     def load_data(self, img):
+        """
+        For communicate with DataFlow class by input image
+        :param img: NP image (Mirrored)
+        :return:
+        """
         self.reset()
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.current_image = img
@@ -91,6 +106,10 @@ class DataFlow:
             self.set_each_hand_shape()
 
     def set_each_hand_shape(self):
+        """
+        To process the result from mphands model to digestable form
+        :return:
+        """
         for i, describe in enumerate(self.hand_results.multi_handedness):
             describe = describe.classification
             label = describe[0].label
@@ -112,11 +131,20 @@ class Queue:
         self.at_ind = at_ind
 
     def add(self, data):
+        """
+        Add data to the Queue
+        :param data:
+        :return:
+        """
         self.data.insert(0, data)
         if len(self.data) >= self.max_len:
             self.data.pop(self.at_ind)
 
     def show(self):
+        """
+        Return Field data The value will be upadated only if all the value are the same
+        :return: The data
+        """
         if self.data.count(self.data[0]) == len(self.data):
             self.label = self.data[0]
         return self.label
@@ -124,9 +152,19 @@ class Queue:
 
 class PredictionAlgorithm:
     def get_result(self, dataflow: DataFlow) -> list:  # return list of stage eg. [1,0] , [0]
+        """
+        The template method that process Dataflow object to return stage
+        :param dataflow:
+        :return list:
+        """
         raise NotImplemented
 
     def transform_dataflow(self, dataflow: DataFlow) -> None:  # if you want to change dataflow
+        """
+        Define how the algorithm read the dataflow object eg. preprocessing or switchColorChannel
+        :param dataflow:
+        :return:
+        """
         return
 
 
@@ -141,7 +179,19 @@ class HandDescription:
         # left_hand=True)]
         self.algorithms = [alg() for alg in get_all_algorithm()]
 
+    def reload_algorithm(self):
+        """
+        Reinitilization all of the algorihms
+        :return:
+        """
+        self.algorithms = [alg() for alg in get_all_algorithm()]
+
     def get_final_datapipe_line(self, dataflow):
+        """
+        Return the current sentence of the "Dataflow" object
+        :param dataflow:
+        :return Sentences:
+        """
         ret = []
         # print(self.algorithms)
         # print()
@@ -157,6 +207,11 @@ class HandDescription:
         return ret
 
     def get_hand_label(self, img):
+        """
+        Get the hand label describe for each image
+        :param img:
+        :return:
+        """
         self.dataflow.load_data(img)
         data = self.get_final_datapipe_line(self.dataflow)
         self.all_stage.add(data)
@@ -168,7 +223,8 @@ class HandDescription:
 
 class EmotionRecoginizer:
     def __init__(self):
-        self.detector = FER(mtcnn=True)
+        self.detector = F
+        ER(mtcnn=True)
         self.img = None
 
     def read(self, dataflow: DataFlow):
@@ -187,14 +243,29 @@ class SignDictionary:
             pass
 
     def save_data(self):
+        """
+        Save the current dictionary data to system
+        :return:
+        """
         with open("sign_dictionary.pkl", "wb") as file:
             pickle.dump(self.brain, file)
 
     def load_data(self):
+        """
+        load the dictionary data stored in user system
+        :return:
+        """
         with open("sign_dictionary.pkl", "rb") as file:
-            self.brain = pickle.load(file)
+            #self.brain = pickle.load(file)
+            self.brain = sorted(pickle.load(file), key=lambda x: len(x), reverse=True)
 
     def search(self, sentence, exclude_word=None):
+        """
+        To see if the sentences match any sentences return word if matched
+        :param sentence: sentences to match the pattern
+        :param exclude_word: the word to exclude
+        :return:
+        """
         if exclude_word is None:
             exclude_word = []
         for i in self.brain:
@@ -203,6 +274,11 @@ class SignDictionary:
                 return i.word
 
     def add_word(self, sentence):
+        """
+        add word to dictionary object
+        :param sentence:
+        :return:
+        """
         self.brain.append(sentence)
 
 
@@ -215,6 +291,11 @@ class Sentences:
             self.add_stage(stage)
 
     def __eq__(self, other):
+        """
+        to compair if each sentences matched
+        :param other:
+        :return bool: True if sentences match
+        """
         for i in range(len(other) - len(self) + 1):
             if other.sentence[i:i + len(self)] == self.sentence:
                 # print(other.sentence[i:i + len(self)],i,other.sentence)
@@ -222,6 +303,10 @@ class Sentences:
         return False
 
     def __repr__(self):
+        """
+        get the string represented the sentences stage
+        :return string: represented the sentences stage
+        """
         msg = ""
         for i, stage in enumerate(self.sentence):
             if i == len(self.sentence) - 1:
@@ -230,21 +315,43 @@ class Sentences:
         return msg
 
     def add_stage(self, stage):
+        """
+        add sentence to the sentences
+        :param stage:
+        :return:
+        """
         if len(self.sentence) >= self.max_len:
             self.sentence.pop(0)
         self.sentence.append(stage)
 
     def clear(self):
+        """
+        clear all the sentences
+        :return:
+        """
         self.sentence = []
 
     def __len__(self):
+        """
+        return the length of the sentences
+        :return:
+        """
         return len(self.sentence)
 
     def __hash__(self):
+        """
+        return hash value of the sentences
+        :return:
+        """
         return self
 
 
 def flatten_list(data):
+    """
+    To flatten the list
+    :param data:
+    :return:
+    """
     i = 0
     while i < len(data):
         if isinstance(data[i], list):
@@ -268,6 +375,11 @@ class Stage:
             self.msg = msg
 
     def __eq__(self, other):
+        """
+        Compair if the stages are equal
+        :param other:
+        :return bool: True if the sentence are equal
+        """
         my_msg = self.msg.split("-")
         # print(other)
         if other is None:
@@ -282,13 +394,26 @@ class Stage:
         return True
 
     def __repr__(self):
+        """
+        return the stage reprecented
+        :return:
+        """
         return f'stage({self.msg})'
 
     def __str__(self):
+        """
+        return the user representation of the stage actually the same as repr
+        :return:
+        """
         return self.msg
 
 
     def __add__(self, other):
+        """
+        Combine two sentences into one but the algorithm are truncated
+        :param other:
+        :return:
+        """
         my_msg = self.msg.split("-")
         other_msg = other.msg.split("-")
         new_msg = []
@@ -316,9 +441,18 @@ class HandInterpreter:
         self.hand_dictionary = SignDictionary()
 
     def reset_sentence(self):
+        """
+        Reset current sentence
+        :return:
+        """
         self.sentence = Sentences()
 
     def read(self, img=None):
+        """
+        Use to feed data to this HandInterpreter object
+        :param img: numpy array
+        :return str: word if found
+        """
         if img is None:
             _, img = self.camera.read()
         self.description.confident = 0
@@ -339,12 +473,17 @@ class HandInterpreter:
             # print(self.sentence)
             print(word)
             if word is not None and word not in self.prev_word.data:
-                #self.prev_word.add(word)
-                self.sentence.clear()
+                self.prev_word.add(word)
+                #self.sentence.clear()
                 return word
 
     @staticmethod
     def hand_label2stage(result):
+        """
+        from string to Sentence representation
+        :param result:
+        :return:
+        """
         # print(np.array(result).flatten().tolist())
         # stage = Stage('-'.join([str(i) for i in np.array(result).flatten().tolist()]))
         stage = Stage(result)

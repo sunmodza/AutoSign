@@ -96,7 +96,7 @@ class Ui_MainWindow(QMainWindow):
         self.display_word_label.setText(_translate("MainWindow", "ORDER STAGE"))
         self.Stage_label.setText(_translate("MainWindow", "CURRENT_STAGE"))
         self.current_stage_label.setText(_translate("MainWindow", "9-9-0-0-0-0"))
-        self.record_stage_button.setText(_translate("MainWindow", "RECORD"))
+        self.record_stage_button.setText(_translate("MainWindow", "ADD VOCAB"))
 
 
 if __name__ == "__main__":

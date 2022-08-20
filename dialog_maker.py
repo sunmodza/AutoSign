@@ -3,7 +3,7 @@ import re
 from typing import List
 
 class ClassAdder(QtWidgets.QWidget):
-    def __init__(self,name,special_return = None,**kwargs):
+    def __init__(self,name: str,special_return = None,**kwargs):
         super(ClassAdder, self).__init__()
         self.name = name
         self.kwargs = kwargs
@@ -66,6 +66,10 @@ class ClassAdder(QtWidgets.QWidget):
         self.setLayout(self.stack)
 
     def toPlainText(self):
+        """
+        Get text representation of the class
+        :return:
+        """
         # print(self.stack.children())
         text = f'{self.name}('
         for i,(key,value) in enumerate(self.kwargs.items()):
@@ -103,15 +107,24 @@ class ChooseAndDisplayClassAdder(QtWidgets.QWidget):
         self.setLayout(self.layout)
 
     def handle_selected_class(self,i):
+        """
+        handle if user selected class
+        :param i:
+        :return:
+        """
         #self.layout.itemAt(self.layout.count() - 1).widget().destroy()
         self.layout.itemAt(self.layout.count() - 1).widget().hide()
         self.layout.removeWidget(self.layout.itemAt(self.layout.count()-1).widget())
         self.layout.addWidget(self.all_adder[i])
         self.all_adder[i].show()
-        #self.layout.replaceWidget(self.all_adder[self.previous_index],self.all_adder[i])
+        # self.layout.replaceWidget(self.all_adder[self.previous_index],self.all_adder[i])
         self.previous_index = i
 
     def toPlainText(self):
+        """
+        get the text representation of the object ready to create tensorflow code
+        :return:
+        """
         subfix = "" if self.subfix is None else self.subfix
         if self.all_adder[self.previous_index].special_return == "None":
             return self.all_adder[self.previous_index].toPlainText()
@@ -181,6 +194,10 @@ class ChooseAndAdd(QtWidgets.QWidget):
         self.setLayout(self.layout)
 
     def add_class(self):
+        """
+        pop user to fill the class data
+        :return:
+        """
         self.ask.exec_()
         v = self.ask.return_value
         if v is None:
@@ -191,6 +208,10 @@ class ChooseAndAdd(QtWidgets.QWidget):
         self.all_choosed.addItem(v)
 
     def toPlainText(self):
+        """
+        get the code representation of the object
+        :return:
+        """
         text = ""
         for i in range(self.all_choosed.count()):
             text+=f'{self.all_choosed.item(i).text()},'
@@ -198,6 +219,10 @@ class ChooseAndAdd(QtWidgets.QWidget):
         return f'[{text[:-1]}]'
 
 def get_metrics():
+    """
+    conventional function to generate the metrics selector
+    :return:
+    """
     auc = ClassAdder("AUC", num_thresshoulds="N>i>200", curve=["ROC", "PR"],
                      summation_method=["interpolation", "minoring", "majoring"],
                      threshoulds="N>f>None", multi_label=False, num_labels="N>f>None", label_weights="N>f>None",
@@ -246,6 +271,10 @@ def get_metrics():
     return ChooseAndAdd(choices)
 
 def get_callback():
+    """
+    Conventional method to generate the callback chooser
+    :return:
+    """
     model_chk_point = ClassAdder("ModelCheckpoint",filepath="N>f>cb/",monitor="N>f>loss",verbose="N>i>0",save_best_only=True,
                                  mode=["auto","min","max"],save_weights_only=False,save_freq="N>f>epoch")
     tensorboard = ClassAdder("TensorBoard",log_dir="N>f>'logs'",

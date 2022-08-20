@@ -1,9 +1,13 @@
+# use to edit the hand_dictionary
+# provide function to load show save del data
+
+
 import pickle
 import re
 
 from hand_lib import Sentences,Stage
 def load_data():
-    with open("../sign_dictionary.pkl", "rb") as file:
+    with open("sign_dictionary.pkl", "rb") as file:
         obj = pickle.load(file)
     return obj
 
@@ -13,7 +17,7 @@ def show_data():
         print(i,v.sentence,v.word)
 
 def save_data(obj):
-    with open("../sign_dictionary.pkl", "wb") as file:
+    with open("sign_dictionary.pkl", "wb") as file:
         pickle.dump(obj, file)
 
 def del_data(i):

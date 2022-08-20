@@ -6,100 +6,130 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>808</width>
-    <height>564</height>
+    <width>876</width>
+    <height>666</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
-  <widget class="QWidget" name="layoutWidget">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>20</y>
-     <width>769</width>
-     <height>531</height>
-    </rect>
-   </property>
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QLabel" name="label_2">
-        <property name="styleSheet">
-         <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
-        </property>
-        <property name="text">
-         <string>SEARCH</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="search_with_combo">
-        <property name="styleSheet">
-         <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>by name</string>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QLabel" name="label_2">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
          </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>by sentences</string>
+         <property name="styleSheet">
+          <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
          </property>
-        </item>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="lineEdit">
-        <property name="styleSheet">
-         <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="search_button">
-        <property name="text">
-         <string>SEARCH</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label">
-        <property name="styleSheet">
-         <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
-        </property>
-        <property name="text">
-         <string>SORT</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="sortby_combo">
-        <property name="styleSheet">
-         <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
-        </property>
-        <item>
          <property name="text">
-          <string>by added date</string>
+          <string>SEARCH</string>
          </property>
-        </item>
-        <item>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="search_with_combo">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
+         </property>
+         <item>
+          <property name="text">
+           <string>by name</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>by sentences</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit">
+         <property name="styleSheet">
+          <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="search_button">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="text">
-          <string>by name</string>
+          <string>SEARCH</string>
          </property>
-        </item>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <widget class="QListWidget" name="all_dictionary"/>
-    </item>
-   </layout>
-  </widget>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
+         </property>
+         <property name="text">
+          <string>SORT</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="sortby_combo">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">font: 75 14pt &quot;Calibri&quot;;</string>
+         </property>
+         <item>
+          <property name="text">
+           <string>by added date</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>by name</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="QListWidget" name="all_dictionary"/>
+     </item>
+    </layout>
+   </item>
+  </layout>
  </widget>
  <resources/>
  <connections/>
