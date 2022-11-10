@@ -15,6 +15,31 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
+    <item row="1" column="0">
+     <layout class="QVBoxLayout" name="verticalLayout_4">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="QListWidget" name="all_layer"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QPushButton" name="delete_last_layer">
+        <property name="text">
+         <string>DELETE LAST LAYER</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="add_layer">
+        <property name="text">
+         <string>ADD LAYER</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
     <item row="0" column="0">
      <layout class="QVBoxLayout" name="verticalLayout_5">
       <item>
@@ -28,24 +53,6 @@
        <widget class="QPushButton" name="add_input_button">
         <property name="text">
          <string>ADD INPUT</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item row="1" column="0">
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <layout class="QVBoxLayout" name="verticalLayout">
-        <item>
-         <widget class="QListWidget" name="all_layer"/>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="QPushButton" name="add_layer">
-        <property name="text">
-         <string>ADD LAYER</string>
         </property>
        </widget>
       </item>
@@ -80,6 +87,23 @@ p, li { white-space: pre-wrap; }
       </item>
      </layout>
     </item>
+    <item row="4" column="0">
+     <widget class="QPushButton" name="add_algorithm">
+      <property name="styleSheet">
+       <string notr="true">font: 14pt &quot;Calibri&quot;;</string>
+      </property>
+      <property name="text">
+       <string>GO</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="2">
+     <widget class="QPushButton" name="pushButton">
+      <property name="text">
+       <string>BACK</string>
+      </property>
+     </widget>
+    </item>
     <item row="3" column="0">
      <layout class="QVBoxLayout" name="verticalLayout_9">
       <item>
@@ -98,20 +122,10 @@ p, li { white-space: pre-wrap; }
       </item>
      </layout>
     </item>
-    <item row="4" column="0">
-     <widget class="QPushButton" name="add_algorithm">
-      <property name="styleSheet">
-       <string notr="true">font: 14pt &quot;Calibri&quot;;</string>
-      </property>
-      <property name="text">
-       <string>GO</string>
-      </property>
-     </widget>
-    </item>
     <item row="4" column="1">
-     <widget class="QPushButton" name="pushButton">
+     <widget class="QPushButton" name="auto_mode">
       <property name="text">
-       <string>BACK</string>
+       <string>AUTO</string>
       </property>
      </widget>
     </item>

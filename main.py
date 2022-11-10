@@ -10,6 +10,7 @@ import pandas as pd
 import pyttsx3
 import tensorflow as tf
 import tensorflow.keras as keras
+from sklearn.metrics import confusion_matrix
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut, QAction
@@ -247,6 +248,7 @@ class DeepLearningModelMakeUi(Ui_DesignAlgorithm):
         super(DeepLearningModelMakeUi, self).__init__()
         self.setupUi(main_window)
         main_window.linked_ui = self
+        self.link_main_window = main_window
         self.total_shape = [0, 3]
 
         self.add_compile.clicked.connect(self.add_compile_dialog)
@@ -254,6 +256,8 @@ class DeepLearningModelMakeUi(Ui_DesignAlgorithm):
         self.add_layer.clicked.connect(self.add_layer_dialog)
         self.add_algorithm.clicked.connect(self.compile_model)
         self.add_callback_button.clicked.connect(self.add_callback)
+        self.delete_last_layer.clicked.connect(self.pop_layer)
+        self.auto_mode.clicked.connect(self.auto_layer_creation)
 
         # item = QtWidgets.QListWidgetItem("Input(shape=(0,0))")
         # item.requ
@@ -265,6 +269,35 @@ class DeepLearningModelMakeUi(Ui_DesignAlgorithm):
         self.current_input_shape = (0,0)
 
         self.all_layer.addItem(f"Input(shape={self.current_input_shape})")
+
+    def auto_layer_creation(self):
+        # determined which layer type of input from shape
+        oc, done2 = QtWidgets.QInputDialog.getInt(
+            self.link_main_window, 'OutputCount', 'Enter desired model output count:')
+        output_count = oc
+        layers = []
+        if len(self.current_input_shape) == 2: # cordinate data
+            layers.append("Flatten()")
+            current_shape = int(self.current_input_shape[0] * self.current_input_shape[1])
+            layers.append(f'Dense(units = {current_shape},activation = "elu")')
+            while current_shape > output_count*2:
+                if current_shape > 150:
+                    current_shape = 150
+                current_shape = int(current_shape*1.2)
+                layers.append(f'Dense(units = {current_shape},activation = "relu")')
+                if current_shape > 50:
+                    layers.append("Dropout(0.1)")
+                current_shape = int((current_shape/1.2)*0.5)
+                #layers.append(f'Dense(units = {current_shape},activation = "relu")')
+            layers.append(f'Dense(units = {current_shape},activation = "sigmoid")')
+            layers.append(f'Dense(units = {output_count},activation = "softmax")')
+
+        elif len(self.current_input_shape) == 3: # image data
+            pass
+        for layer in layers:
+            self.add_layer_dialog(predefined_layer_str=layer)
+        self.view_compile.setText("compile(optimizer = Nadam(learning_rate = 0.001,beta_1 = 0.9,beta_2 = 0.999,epsilon = 1e-07),loss = CategoricalCrossentropy(),metrics = [CategoricalAccuracy()])")
+        return
 
     def add_callback(self):
         """
@@ -327,7 +360,7 @@ class DeepLearningModelMakeUi(Ui_DesignAlgorithm):
             self.all_layer.addItem(f'Un_calculated')
         self.added = True
 
-    def add_layer_dialog(self):
+    def add_layer_dialog(self,predefined_layer_str=None):
         """
         for choose layer  from class adder
         :return:
@@ -335,12 +368,18 @@ class DeepLearningModelMakeUi(Ui_DesignAlgorithm):
         if self.current_input_shape == (0,0):
             popup_error_text("Add Some Input First!!")
             return
-        d = LayerDialog()
-        d.exec_()
+        if predefined_layer_str is None:
+            d = LayerDialog()
+            d.exec_()
 
-        if d.return_value is None:
-            return
-
+            if d.return_value is None:
+                return
+            print(d.return_value)
+        else:
+            class phd_d:
+                pass
+            d = phd_d()
+            d.return_value = predefined_layer_str
         # obj = QtWidgets.QListWidgetItem()
         # obj.setText(d.return_value)
         # print(d.return_value)
@@ -373,12 +412,17 @@ class DeepLearningModelMakeUi(Ui_DesignAlgorithm):
 
     def pop_layer(self):
         """
-        handle hayer deletion
+        handle layer deletion
         :return:
         """
+        #self.all_layer.removeItemWidget(self.all_layer.takeItem(self.all_layer.count() - 1))
+        #self.all_layer.removeItemWidget(self.all_layer.takeItem(self.all_layer.count() - 2))
+        if self.all_layer.count() <= 2:
+            return
         self.all_layer.removeItemWidget(self.all_layer.takeItem(self.all_layer.count() - 1))
-        self.all_layer.removeItemWidget(self.all_layer.takeItem(self.all_layer.count() - 2))
+        self.all_layer.removeItemWidget(self.all_layer.takeItem(self.all_layer.count() - 1))
         self.re_calculate_outshape()
+        self.all_layer.addItem(f'FINAL_OUT_SHAPE = {self.out.shape}')
 
     def re_calculate_outshape(self):
         """
@@ -548,6 +592,20 @@ class FitModel(QtCore.QRunnable):
         all_cb = [dialog_cb, *self.algo_maker.training_algo.callback_args]
         # cb.log_dir
         self.algo_maker.training_algo.model.fit(self.xs, self.ys, epochs=self.epochs, callbacks=all_cb, verbose=0)
+
+        # Predict
+        y_prediction = self.algo_maker.training_algo.model.predict(self.xs)
+        y_prediction = np.argmax(y_prediction, axis=1)
+        y_test = np.argmax(self.ys, axis=1)
+        #print(y_test,y_prediction)
+        # Create confusion matrix and normalizes it over predicted (columns)
+        #import seaborn as sns
+        #import matplotlib.pyplot as plt
+        result = confusion_matrix(y_test, y_prediction)
+        self.confusion_matrix = result
+        #sns.heatmap(result)
+        #plt.imsave("hm_result_phd.png")
+        #print(result)
         for cb in all_cb:
             if isinstance(cb, TensorBoard):
                 print(cb)
@@ -675,6 +733,18 @@ class AlgorithmsManagerUi(Ui_MakeAlgorithm):
         # th = Thread(target=lambda: fit_model(xs, ys, epochs=self.epochs_value.value())).start()
         popup.ok.setEnabled(True)
         popup.exec()
+        conf = fit_obj.confusion_matrix
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        labels = np.arange(1,conf.shape[0]+1)
+        plt.figure(figsize=(16, 16))
+        sns.heatmap(conf, annot=True, fmt="d", xticklabels=labels, yticklabels=labels, linewidths=.5)
+        plt.xlabel("True Value")
+        plt.ylabel("Predicted Value")
+        plt.title("Confusion Matrix")
+        plt.show()
+
+        #print("AOU")
 
         if self.tb_url is not None and not self.tb_opened:
             self.tb_opened = True
@@ -1213,6 +1283,7 @@ class HandInterpreterThread(QtCore.QThread):
         self.hand_interpreter = hand_interpreter
         self.ThreadAction = False
         self.slow_factor = 1
+        self.start_to_end = []
 
     def update_image(self, img):
         self.current_img = img
@@ -1220,6 +1291,7 @@ class HandInterpreterThread(QtCore.QThread):
     def run(self):
         self.ThreadAction = True
         while self.ThreadAction:
+            start_time = time.perf_counter()
             if self.current_img is None:
                 continue
             # word = self.hand_interpreter.read(self.current_img)
@@ -1245,6 +1317,9 @@ class HandInterpreterThread(QtCore.QThread):
                 # speaker_engine.runAndWait()
                 self.word_signal.emit(str(word))
             cv2.waitKey(1*self.slow_factor)
+            #self.start_to_end.append(time.perf_counter()-start_time)
+            with open("record_time.txt","a") as file:
+                file.write(f'{time.perf_counter()-start_time}\n')
 
     def stop(self):
         self.ThreadAction = False

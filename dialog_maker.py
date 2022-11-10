@@ -4,6 +4,13 @@ from typing import List
 
 class ClassAdder(QtWidgets.QWidget):
     def __init__(self,name: str,special_return = None,**kwargs):
+        """
+        The Constructor of The ClassAdder
+
+        :param name:
+        :param special_return:
+        :param kwargs:
+        """
         super(ClassAdder, self).__init__()
         self.name = name
         self.kwargs = kwargs

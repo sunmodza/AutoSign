@@ -137,7 +137,7 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.confident_label.setText(_translate("MainWindow", "CONFIDENT: 99%"))
         self.display_word_label.setText(_translate("MainWindow", "CURRENT_WORD"))
-        self.Stage_label.setText(_translate("MainWindow", "CURRENT_STAGE"))
+        self.Stage_label.setText(_translate("MainWindow", "CURRENT_SENTENCE"))
         self.current_stage_label.setText(_translate("MainWindow", "9-9-0-0-0-0"))
         self.record_stage_button.setText(_translate("MainWindow", "ADD VOCAB"))
         self.edit_dict_list.setText(_translate("MainWindow", "EDIT VOCAB"))
