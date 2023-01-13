@@ -172,7 +172,7 @@ class HandDescription:
     def __init__(self):
         self.dataflow = DataFlow()
         # self.hand_shape = HandShape()
-        self.all_stage = Queue()
+        self.all_sentence = Queue()
         # self.emotion_recoginizer = EmotionRecoginizer() self.test = PredictionNeuralNetwork("smile",
         # right_hand=True) self.algorithms = [HandPositionAlgorithm(), HandFlipAlgorithm(), HandShapeAlgorithm(),
         # PredictionNeuralNetwork("smile", right_hand=True),PredictionNeuralNetwork("at", pose_results=True,
@@ -200,7 +200,7 @@ class HandDescription:
         for algorithm in self.algorithms:
             try:
                 ret.append(algorithm.get_result(dataflow))
-            except:
+            except BaseException as e:
                 ret.append(0)
         # print(time.perf_counter()-s)
 
@@ -214,11 +214,11 @@ class HandDescription:
         """
         self.dataflow.load_data(img)
         data = self.get_final_datapipe_line(self.dataflow)
-        self.all_stage.add(data)
+        self.all_sentence.add(data)
         self.dataflow.add_variables(current_hand_flip=data[1], current_hand_position=data[0],
                                     current_hand_shape=data[2])
         # self.all_stage.add([self.current_hand_position,self.current_hand_flip,self.current_hand_shape,test])
-        return Stage(self.all_stage.show())
+        return Sentence(self.all_sentence.show())
 
 
 class EmotionRecoginizer:
@@ -288,7 +288,7 @@ class Sentences:
         self.word = word
         self.max_len = max_len
         for stage in args:
-            self.add_stage(stage)
+            self.add_sentence(stage)
 
     def __eq__(self, other):
         """
@@ -314,7 +314,7 @@ class Sentences:
             msg += f"{stage.msg} ::--> "
         return msg
 
-    def add_stage(self, stage):
+    def add_sentence(self, stage):
         """
         add sentence to the sentences
         :param stage:
@@ -364,7 +364,7 @@ def flatten_list(data):
     return data
 
 
-class Stage:
+class Sentence:
     def __init__(self, msg):
         self.msg = ""
         if isinstance(msg, list):
@@ -424,20 +424,19 @@ class Stage:
             else:
                 new_msg.append(my_msg[i])
 
-        return Stage('-'.join(new_msg))
+        return Sentence('-'.join(new_msg))
 
 
 class HandInterpreter:
     def __init__(self):
         self.camera = cv2.VideoCapture(0)
         self.description = HandDescription()
-        self.prev_stage = None
-        self.sentences = ""
+        self.prev_sentence = None
         self.prev_word = Queue(max_len=4, at_ind=-1)
         self.prev_word_sentence = None
         self.confident = 0
         self.img = None
-        self.sentence = Sentences()
+        self.sentences = Sentences()
         self.hand_dictionary = SignDictionary()
 
     def reset_sentence(self):
@@ -445,7 +444,7 @@ class HandInterpreter:
         Reset current sentence
         :return:
         """
-        self.sentence = Sentences()
+        self.sentences = Sentences()
 
     def read(self, img=None):
         """
@@ -457,24 +456,15 @@ class HandInterpreter:
             _, img = self.camera.read()
         self.description.confident = 0
         self.img = img
-        stage = self.description.get_hand_label(cv2.flip(img, 1))
-        # print(result)
-        # stage = self.hand_label2stage(result)
-        # HandSpeller().get_hand_spell(self)
-        # print(stage)
-        if stage != self.prev_stage:
-            self.prev_stage = stage
-            # self.confident = 0
-            # update
-            self.sentence.add_stage(self.prev_stage)
-            #start = time.perf_counter()
-            word = self.hand_dictionary.search(self.sentence, exclude_word=self.prev_word.data)
-            #print(time.perf_counter()-start)
-            # print(self.sentence)
-            print(word)
+        sentence = self.description.get_hand_label(cv2.flip(img, 1))
+
+        if sentence != self.prev_sentence:
+            self.prev_sentence = sentence
+            self.sentences.add_sentence(self.prev_sentence)
+            word = self.hand_dictionary.search(self.sentences, exclude_word=self.prev_word.data)
+            # print(word)
             if word is not None and word not in self.prev_word.data:
                 self.prev_word.add(word)
-                #self.sentence.clear()
                 return word
 
     @staticmethod
@@ -486,7 +476,7 @@ class HandInterpreter:
         """
         # print(np.array(result).flatten().tolist())
         # stage = Stage('-'.join([str(i) for i in np.array(result).flatten().tolist()]))
-        stage = Stage(result)
+        stage = Sentence(result)
         # print(stage)
         return stage
 
